@@ -31,6 +31,7 @@ func getPathValue(r *http.Request, pathCheck *regexp.Regexp) (string, error) {
 }
 
 func (env *environment) updateHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("updateHandler")
 	pageTitle, err := getPathValue(r, validPath)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -44,7 +45,7 @@ func (env *environment) rootHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("I'm alive!")
 }
 
-func (env *environment) setupWebhook(certificateFilePath string) error {
+func (env *environment) setupWebhook(certificateFilePath string, url string) error {
 	keyFile, err := os.Open(certificateFilePath)
 	if err != nil {
 		return err
@@ -55,7 +56,7 @@ func (env *environment) setupWebhook(certificateFilePath string) error {
 	writer := multipart.NewWriter(body)
 	part, _ := writer.CreateFormFile("certificate", keyFile.Name())
 	io.Copy(part, keyFile)
-	err = writer.WriteField("url", "https://" + env.ipAddress + "/")
+	err = writer.WriteField("url", "https://" + url + "/")
 	if err != nil {
 		return err
 	}
@@ -90,7 +91,7 @@ func (env *environment) deleteWebhook() error {
 	if err != nil {
 		return err
 	}
-	log.Printf("reponse to the webhook instal - [%s]", buf)
+	log.Printf("reponse to the webhook delete - [%s]", buf)
 	return nil
 }
 
@@ -108,10 +109,13 @@ func (env *environment) getWebhookInfo() error {
 	return nil
 }
 
-func createEnvironment(webhookAction string, botKey string, ipAddress string, certificateFilePath string) *environment {
+func createEnvironment(webhookAction string, botKey string, ipAddress string, certificateFilePath string, url string) *environment {
 	//Valid input parameters
 	if botKey == "" {
 		log.Fatal("error: telegram bot token is not set")
+	}
+	if url == "" {
+		log.Fatal("error: url is not set")
 	}
 	if ipAddress == "" {
 		log.Fatal("error: ip address is not set")
@@ -127,7 +131,7 @@ func createEnvironment(webhookAction string, botKey string, ipAddress string, ce
 
 	//process webhook action provided by the user
 	if webhookAction == "install" {
-		err := env.setupWebhook(certificateFilePath)
+		err := env.setupWebhook(certificateFilePath, url)
 		if err != nil {
 			log.Printf("error: failed to install webhook - %v", err)
 		}

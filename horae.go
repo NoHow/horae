@@ -40,7 +40,7 @@ func main() {
 
 	cfg := loadConfig()
 
-	env := createEnvironment(*webHookAction, cfg.TelegramBotToken, cfg.IpAddress, cfg.CertificateFile)
+	env := createEnvironment(*webHookAction, cfg.TelegramBotToken, cfg.IpAddress, cfg.CertificateFile, cfg.Url)
 	if env == nil {
 		log.Fatal("error: failed to create environment")
 	}
