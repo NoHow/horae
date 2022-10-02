@@ -1,0 +1,7 @@
+{
+  "telegram-bot-token": "111111:AAA-AAAAAAAAAAAA-AAAAAAAAAAAAAAAAA",
+  "certificate-file": "cert.pem",
+  "key-file": "private.key",
+  "url": "example.com",
+  "ip-address": "127.0.0.1"
+}
