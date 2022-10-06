@@ -22,3 +22,7 @@ go.work
 /build/
 /dist/
 /out/
+
+# Project specific files s
+*.key
+*.pem
