@@ -9,7 +9,7 @@ import (
 type ChatId int64
 
 type UserAction struct {
-	MenuOption string            `json:"menu_option"`
+	Action 	   int               `json:"menu_option"`
 	Context    map[string]string `json:"context"`
 }
 

@@ -77,6 +77,12 @@ const (
 	TTEXT_START        = "/start"
 )
 
+const (
+	START_ACTION = iota
+	FOCUS_SELECTION_ACTION
+	BREAK_SELECTION_ACTION
+)
+
 func getPathValue(r *http.Request, pathCheck *regexp.Regexp) (string, error) {
 	m := pathCheck.FindStringSubmatch(r.URL.Path)
 	if m == nil {
@@ -117,6 +123,8 @@ func (env *environment) rootHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	msg := TKeyboardMessageSend{}
+	focusDurations := []string{"15 minutes", "30 minutes", "45 minutes", "1 hour"}
+	pauseDurations := []string{"5 minutes", "10 minutes", "15 minutes", "30 minutes"}
 	switch Update.Message.Text {
 		case TTEXT_START:
 			newUser := User{
@@ -128,7 +136,6 @@ func (env *environment) rootHandler(w http.ResponseWriter, r *http.Request) {
 				msgText := fmt.Sprintf("Hello %s! I will help you to keep organised with your time!\n" +
 					"Please select how long you want your focus duration to be?", Update.Message.From.FirstName)
 
-				focusDurations := []string{"15 minutes", "30 minutes", "45 minutes", "1 hour"}
 				msg = TKeyboardMessageSend{
 					ChatId:         Update.GetChatId(),
 					Text:           msgText,
@@ -136,9 +143,65 @@ func (env *environment) rootHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			env.users.saveLastUserAction(Update.GetChatId(), UserAction{
-				MenuOption: TTEXT_START,
+				Action: 	START_ACTION,
 				Context:    nil,
 			})
+		default:
+			 user, ok := env.users.data[Update.GetChatId()]
+			 if !ok {
+				 log.Printf("user with chat id - [%v] is not found", Update.GetChatId())
+				 return
+			 }
+
+			//process user input based on last action and context
+			switch user.LastAction.Action {
+				case START_ACTION:
+					if Update.Message.Text == "1 hour" {
+						user.setFocusDuration(60);
+					}
+
+					index := findStringInSlice(focusDurations[0:3], Update.Message.Text)
+					if index == -1 {
+						log.Printf("invalid focus duration - [%v]", Update.Message.Text)
+						return
+					}
+					user.setFocusDuration((index + 1) * 15)
+					env.users.data[Update.GetChatId()] = user
+					env.users.saveLastUserAction(Update.GetChatId(), UserAction{
+						Action: FOCUS_SELECTION_ACTION,
+						Context:    nil,
+					})
+
+					msgText := fmt.Sprintf("Please select how long you want your breaks to be?")
+					msg = TKeyboardMessageSend{
+						ChatId:         Update.GetChatId(),
+						Text:           msgText,
+						KeyboardMarkup: GenerateListKeyboard(pauseDurations),
+					}
+				case FOCUS_SELECTION_ACTION:
+					if Update.Message.Text == "30 minutes" {
+						user.setBreakDuration(30);
+					}
+
+					index := findStringInSlice(pauseDurations[0:3], Update.Message.Text)
+					if index == -1 {
+						log.Printf("invalid pause duration - [%v]", Update.Message.Text)
+						return
+					}
+					user.setBreakDuration((index + 1) * 5)
+					env.users.data[Update.GetChatId()] = user
+					env.users.saveLastUserAction(Update.GetChatId(), UserAction{
+						Action: BREAK_SELECTION_ACTION,
+						Context:    nil,
+					})
+
+					msgText := fmt.Sprintf("Great! You are all set to start your first focus session!")
+					msg = TKeyboardMessageSend{
+						ChatId:         Update.GetChatId(),
+						Text:           msgText,
+						KeyboardMarkup: GenerateMainKeyboard(),
+					}
+			}
 	}
 
 	//Prepare message for sending
@@ -293,6 +356,17 @@ func createEnvironment(webhookAction string, botKey string, ipAddress string, ce
 	}
 
 	return &env
+}
+
+func GenerateMainKeyboard() TReplyKeyboard {
+	keyboard := make([][]TKeyBoardButton, 2)
+	keyboard[0] = GenerateKeyboardRow("Start focus session")
+	keyboard[1] = GenerateKeyboardRow("Settings")
+
+	return TReplyKeyboard{
+		Keyboard: keyboard,
+		ResizeKeyboard: true,
+	}
 }
 
 func GenerateKeyboardRow(btnText string) []TKeyBoardButton {
