@@ -26,3 +26,4 @@ go.work
 # Project specific files s
 *.key
 *.pem
+data
