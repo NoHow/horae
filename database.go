@@ -77,6 +77,28 @@ func (db *hDataBase) saveUserData(chatId ChatId, user User) error {
 	})
 }
 
+func (db *hDataBase) getAllUsersData() (map[ChatId]User, error) {
+	users := make(map[ChatId]User, 0)
+	err := db.db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket([]byte("users"))
+		c := b.Cursor()
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			var user User
+			err := json.Unmarshal(v, &user)
+			if err != nil {
+				return fmt.Errorf("unmarshal user: %s", err)
+			}
+			chatId := ChatId(binary.BigEndian.Uint64(k))
+			users[chatId] = user
+		}
+		return nil
+	})
+	if err != nil {
+		return users, err
+	}
+	return users, nil
+}
+
 func (db *hDataBase) wipeBucket(bucketName []byte) error {
 	err := db.db.Update(func(tx *bbolt.Tx) error {
 		err := tx.DeleteBucket(bucketName)

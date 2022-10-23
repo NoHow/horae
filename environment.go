@@ -75,6 +75,7 @@ func (u *TUpdate) GetChatId() ChatId {
 
 const (
 	TTEXT_START        = "/start"
+	TTEXT_DURATIONS    = "/durations"
 )
 
 const (
@@ -146,6 +147,19 @@ func (env *environment) rootHandler(w http.ResponseWriter, r *http.Request) {
 				Action: 	START_ACTION,
 				Context:    nil,
 			})
+		case TTEXT_DURATIONS:
+			user, ok := env.users.data[Update.GetChatId()]
+			if !ok {
+				log.Printf("user with chat id - [%v] is not found", Update.GetChatId())
+				return
+			}
+
+			msgText := fmt.Sprintf("Your focus duration is %v and your break duration is %v minutes", user.FocusDurationMins, user.BreakDurationMins)
+			msg = TKeyboardMessageSend{
+				ChatId:         Update.GetChatId(),
+				Text:           msgText,
+				KeyboardMarkup: GenerateMainKeyboard(),
+			}
 		default:
 			 user, ok := env.users.data[Update.GetChatId()]
 			 if !ok {
@@ -171,6 +185,7 @@ func (env *environment) rootHandler(w http.ResponseWriter, r *http.Request) {
 						Action: FOCUS_SELECTION_ACTION,
 						Context:    nil,
 					})
+					env.db.saveUserData(Update.GetChatId(), user)
 
 					msgText := fmt.Sprintf("Please select how long you want your breaks to be?")
 					msg = TKeyboardMessageSend{
@@ -194,6 +209,7 @@ func (env *environment) rootHandler(w http.ResponseWriter, r *http.Request) {
 						Action: BREAK_SELECTION_ACTION,
 						Context:    nil,
 					})
+					env.db.saveUserData(Update.GetChatId(), user)
 
 					msgText := fmt.Sprintf("Great! You are all set to start your first focus session!")
 					msg = TKeyboardMessageSend{
@@ -336,6 +352,11 @@ func createEnvironment(webhookAction string, botKey string, ipAddress string, ce
 	}
 	tmpString := ""
 	env.db.initDB(&tmpString)
+	var err error
+	env.users.data, err = env.db.getAllUsersData()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	//process webhook action provided by the user
 	if webhookAction == "install" {
