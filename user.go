@@ -9,15 +9,16 @@ import (
 type ChatId int64
 
 type UserAction struct {
-	Action 	   int               `json:"menu_option"`
-	Context    map[string]string `json:"context"`
+	Action  int               `json:"menu_option"`
+	Context map[string]string `json:"context"`
 }
 
 type User struct {
-	FirstName          string     `json:"first_name"`
-	FocusDurationMins  int        `json:"focus_duration"`
-	BreakDurationMins  int        `json:"break_duration"`
-	LastAction         UserAction `json:"last_action,omitempty"`
+	FirstName         string      `json:"first_name"`
+	FocusDurationMins int         `json:"focus_duration"`
+	BreakDurationMins int         `json:"break_duration"`
+	LastAction        UserAction  `json:"last_action,omitempty"`
+	Workday           UserWorkday `json:"workday"`
 }
 
 type Users struct {
@@ -25,7 +26,7 @@ type Users struct {
 	mut  sync.Mutex
 }
 
-func (u *User ) setFocusDuration(duration int) error {
+func (u *User) setFocusDuration(duration int) error {
 	switch duration {
 	case 15:
 		u.FocusDurationMins = 15
@@ -41,7 +42,7 @@ func (u *User ) setFocusDuration(duration int) error {
 	return nil
 }
 
-func (u *User ) setBreakDuration(duration int) error {
+func (u *User) setBreakDuration(duration int) error {
 	switch duration {
 	case 5:
 		u.BreakDurationMins = 5
@@ -90,4 +91,23 @@ func (u *Users) saveLastUserAction(chatId ChatId, action UserAction) {
 		log.Printf("user with chat id [%v] not found", chatId)
 	}
 	u.mut.Unlock()
+}
+
+type UserWorkday struct {
+	TasksForDay     []Task `json:"tasks_for_day"`
+	CurrenTaskIndex int    `json:"current_task_index"`
+	PeriodsLeft     int    `json:"periods_left"`
+}
+
+func (u *UserWorkday) getTaskNames() []string {
+	var names []string
+	for _, task := range u.TasksForDay {
+		names = append(names, task.Name)
+	}
+	return names
+}
+
+type Task struct {
+	Name         string
+	FocusPeriods int
 }
