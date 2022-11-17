@@ -25,6 +25,7 @@ type environment struct {
 	db          *hDataBase
 	users       Users
 	timeKeepers map[ChatId]*TimeKeeper
+	tmpTasks    map[ChatId]Task
 }
 
 type TChat struct {
@@ -389,6 +390,7 @@ func (env *environment) rootHandler(w http.ResponseWriter, r *http.Request) {
 					Context: nil,
 				})
 			} else {
+				env.tmpTasks[Update.GetChatId()] = Task{Name: taskName}
 				msgText := fmt.Sprintf("Please select how many focus sessions you want to spend on a task?")
 				keyboardMsg = TKeyboardMessageSend{
 					ChatId:         Update.GetChatId(),
@@ -401,7 +403,7 @@ func (env *environment) rootHandler(w http.ResponseWriter, r *http.Request) {
 				})
 			}
 		case TASK_NAME_SELECTION_ACTION:
-			_, ok := env.users.data[Update.GetChatId()]
+			user, ok := env.users.data[Update.GetChatId()]
 			if !ok {
 				log.Printf("user with chat id - [%v] is not found", Update.GetChatId())
 				return
@@ -423,7 +425,11 @@ func (env *environment) rootHandler(w http.ResponseWriter, r *http.Request) {
 					KeyboardMarkup: GenerateListKeyboard(focusSessions),
 				}
 			} else {
-				msgText := fmt.Sprintf("Great! You are all set to start your first focus session!")
+				newTask := env.tmpTasks[Update.GetChatId()]
+				user.Workday.addTask(newTask)
+				env.users.data[Update.GetChatId()] = user
+
+				msgText := fmt.Sprintf("Great! You are all set to start your focus session!")
 				keyboardMsg = TKeyboardMessageSend{
 					ChatId:         Update.GetChatId(),
 					Text:           msgText,
@@ -646,6 +652,7 @@ func createEnvironment(webhookAction string, botKey string, ipAddress string, ce
 			mut:  sync.Mutex{},
 		},
 		timeKeepers: map[ChatId]*TimeKeeper{},
+		tmpTasks:    map[ChatId]Task{},
 	}
 	tmpString := ""
 	env.db.initDB(&tmpString)

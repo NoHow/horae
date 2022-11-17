@@ -9,8 +9,9 @@ import (
 type ChatId int64
 
 type UserAction struct {
-	Action  int               `json:"menu_option"`
-	Context map[string]string `json:"context"`
+	CurrentMenu int
+	Action      int               `json:"menu_option"`
+	Context     map[string]string `json:"context"`
 }
 
 type User struct {
@@ -105,6 +106,10 @@ func (u *UserWorkday) getTaskNames() []string {
 		names = append(names, task.Name)
 	}
 	return names
+}
+
+func (u *UserWorkday) addTask(task Task) {
+	u.TasksForDay = append(u.TasksForDay, task)
 }
 
 type Task struct {
