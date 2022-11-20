@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"regexp"
-	"strconv"
 	"sync"
 	"time"
 )
@@ -80,8 +79,9 @@ func (u *TUpdate) GetChatId() ChatId {
 const (
 	TTEXT_START     = "/start"
 	TTEXT_DURATIONS = "/durations"
-	TTEXT_MAINMENU  = "/main"
+	TTEXT_MAIN      = "/main"
 
+	TTEXT_MAIN_MENU             = "Main menu"
 	TTEXT_START_FOCUS           = "Let's focus"
 	TTEXT_SETTINGS              = "Settings"
 	TTEXT_STOP_FOCUS            = "Stop focus"
@@ -92,22 +92,16 @@ const (
 	TTEXT_CHANGE_BREAK_DURATION = "Break duration"
 	TTEXT_CHANGE_WORKDAY        = "Workday"
 	TTEXT_ADD_TASK              = "Add task"
+	TTEXT_EDIT_TASK_NAME        = "Edit task name"
+	TTEXT_EDIT_TASK_PERIODS     = "Edit the amount of periods"
+	TTEXT_DELETE_TASK           = "Delete task"
 )
 
 const (
-	START_ACTION = iota
-	MAIN_MENU_ACTION
-	FOCUS_SELECTION_ACTION
-	BREAK_SELECTION_ACTION
-	FOCUS_ACTIVATION_ACTION
-	BREAK_ACTIVATION_ACTION
-	FOCUS_STOP_ACTION
-	BREAK_STOP_ACTION
-	SETTINGS_ACTION
-	CHANGE_WORKDAY_ACTION
-	TASK_ADDITION_ACTION
-	TASK_PERIODS_SELECTION_ACTION
-	TASK_NAME_SELECTION_ACTION
+	INVALID_ACTION = iota
+	START_ACTION
+	SELECT_TASK_NAME_ACTION
+	SELECT_TASK_PERIODS_ACTION
 )
 
 func getPathValue(r *http.Request, pathCheck *regexp.Regexp) (string, error) {
@@ -155,10 +149,9 @@ func (env *environment) rootHandler(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 	Msg := TMessageSend{}
-	sendKeyboard := true
 	focusDurations := []string{"15 minutes", "30 minutes", "45 minutes", "1 hour"}
-	pauseDurations := []string{"5 minutes", "10 minutes", "15 minutes", "30 minutes"}
-	focusSessions := []string{"1", "2", "4", "6", "8"}
+	pauseDurations := []string{"5 minutes", "10 minutes", "15 minutes", "20 minutes"}
+	var processedResult MenuProcessorResult
 	switch Update.Message.Text {
 	case TTEXT_START:
 		newUser := User{
@@ -166,347 +159,95 @@ func (env *environment) rootHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		isNewUser := env.users.add(Update.GetChatId(), newUser)
 		if isNewUser {
-			env.db.saveUserData(Update.GetChatId(), newUser)
-			msgText := fmt.Sprintf("Hello %s! I will help you to keep organised with your time!\n"+
+			processedResult.responseType = RESPONSE_TYPE_KEYBOARD
+			processedResult.replyText = fmt.Sprintf("Hello %s! I will help you to keep organised with your time!\n"+
 				"Please select how long you want your focus duration to be?", Update.Message.From.FirstName)
-
-			keyboardMsg = TKeyboardMessageSend{
-				ChatId:         Update.GetChatId(),
-				Text:           msgText,
-				KeyboardMarkup: GenerateListKeyboard(focusDurations),
-			}
+			processedResult.replyKeyboard = GenerateCustomKeyboard(focusDurations...)
+			processedResult.userAction = UserAction{CurrentMenu: MENU_MAIN_MENU}
 		}
-		env.users.saveLastUserAction(Update.GetChatId(), UserAction{
-			Action:  START_ACTION,
-			Context: nil,
-		})
+	case TTEXT_MAIN:
+		fmt.Printf("User %v selected main menu\n", Update.GetChatId())
+		_, ok := env.users.data[Update.GetChatId()]
+		if !ok {
+			log.Printf("user with chat id - [%v] is not found", Update.GetChatId())
+			return
+		}
+		processedResult.responseType = RESPONSE_TYPE_KEYBOARD
+		processedResult.replyText = "Main menu"
+		processedResult.replyKeyboard = GenerateMainKeyboard()
+		processedResult.userAction = UserAction{CurrentMenu: MENU_MAIN_MENU}
 	case TTEXT_DURATIONS:
 		user, ok := env.users.data[Update.GetChatId()]
 		if !ok {
 			log.Printf("user with chat id - [%v] is not found", Update.GetChatId())
 			return
 		}
+		processedResult.responseType = RESPONSE_TYPE_KEYBOARD
+		processedResult.replyText = fmt.Sprintf("Your focus duration is %v and your break duration is %v minutes", user.FocusDurationMins, user.BreakDurationMins)
+		processedResult.replyKeyboard = GenerateMainKeyboard()
+		processedResult.userAction = UserAction{CurrentMenu: MENU_MAIN_MENU}
+	}
 
-		msgText := fmt.Sprintf("Your focus duration is %v and your break duration is %v minutes", user.FocusDurationMins, user.BreakDurationMins)
-		keyboardMsg = TKeyboardMessageSend{
-			ChatId:         Update.GetChatId(),
-			Text:           msgText,
-			KeyboardMarkup: GenerateMainKeyboard(),
-		}
-	case TTEXT_MAINMENU:
-		_, ok := env.users.data[Update.GetChatId()]
-		if !ok {
-			log.Printf("user with chat id - [%v] is not found", Update.GetChatId())
-			return
-		}
-		msgText := "What would you like to do?"
-		keyboardMsg = TKeyboardMessageSend{
-			ChatId:         Update.GetChatId(),
-			Text:           msgText,
-			KeyboardMarkup: GenerateMainKeyboard(),
-		}
-		env.users.saveLastUserAction(Update.GetChatId(), UserAction{
-			Action:  MAIN_MENU_ACTION,
-			Context: nil,
-		})
-	case TTEXT_START_FOCUS:
-		user, err := env.startKeeperHelper(Update.GetChatId(), FOCUS_ACTIVATION_ACTION)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-
-		msgText := fmt.Sprintf("Focus session started! You have %v minutes to focus", user.FocusDurationMins)
-		keyboardMsg = TKeyboardMessageSend{
-			ChatId:         Update.GetChatId(),
-			Text:           msgText,
-			KeyboardMarkup: GenerateCustomKeyboard(TTEXT_STOP_FOCUS),
-		}
-	case TTEXT_STOP_FOCUS:
-		msgPtr, err := env.stopKeeperHelper(Update.GetChatId(), fmt.Sprintf("Focus session ended! You can take a break now"), FOCUS_STOP_ACTION)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		keyboardMsg = *msgPtr
-	case TTEXT_START_BREAK:
-		user, err := env.startKeeperHelper(Update.GetChatId(), BREAK_ACTIVATION_ACTION)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-
-		msgText := fmt.Sprintf("Break session started! See you in %v minutes", user.BreakDurationMins)
-		keyboardMsg = TKeyboardMessageSend{
-			ChatId:         Update.GetChatId(),
-			Text:           msgText,
-			KeyboardMarkup: GenerateCustomKeyboard(TTEXT_STOP_BREAK),
-		}
-	case TTEXT_STOP_BREAK:
-		msgPtr, err := env.stopKeeperHelper(Update.GetChatId(), fmt.Sprintf("Break is over, time to get back to work!"), BREAK_STOP_ACTION)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		keyboardMsg = *msgPtr
-	case TTEXT_SETTINGS:
-		_, ok := env.users.data[Update.GetChatId()]
-		if !ok {
-			log.Printf("user with chat id - [%v] is not found", Update.GetChatId())
-			return
-		}
-
-		msgText := fmt.Sprintf("What do you want to change?")
-		keyboardMsg = TKeyboardMessageSend{
-			ChatId:         Update.GetChatId(),
-			Text:           msgText,
-			KeyboardMarkup: GenerateCustomKeyboard(TTEXT_CHANGE_FOCUS_DURATION, TTEXT_CHANGE_BREAK_DURATION, TTEXT_CHANGE_WORKDAY),
-		}
-		env.users.saveLastUserAction(Update.GetChatId(), UserAction{
-			Action:  SETTINGS_ACTION,
-			Context: nil,
-		})
-	case TTEXT_CHANGE_WORKDAY:
+	if processedResult.responseType == RESPONSE_TYPE_NONE {
 		user, ok := env.users.data[Update.GetChatId()]
 		if !ok {
-			log.Printf("user with chat id - [%v] is not found", Update.GetChatId())
-			return
-		}
-		taskNames := user.Workday.getTaskNames()
-		taskNames = append(taskNames, TTEXT_ADD_TASK)
-		msgText := fmt.Sprintf("What tasks do you want to modify?")
-		keyboardMsg = TKeyboardMessageSend{
-			ChatId:         Update.GetChatId(),
-			Text:           msgText,
-			KeyboardMarkup: GenerateListKeyboard(taskNames),
-		}
-		keyboardMsg.KeyboardMarkup.OneTimeKeyboard = true
-		env.users.saveLastUserAction(Update.GetChatId(), UserAction{
-			Action:  CHANGE_WORKDAY_ACTION,
-			Context: nil,
-		})
-	case TTEXT_ADD_TASK:
-		_, ok := env.users.data[Update.GetChatId()]
-		if !ok {
-			log.Printf("user with chat id - [%v] is not found", Update.GetChatId())
-			return
-		}
-
-		msgText := fmt.Sprintf("What kind of task do you want to add?")
-		Msg = TMessageSend{
-			ChatId: Update.GetChatId(),
-			Text:   msgText,
-		}
-		sendKeyboard = false
-		env.users.saveLastUserAction(Update.GetChatId(), UserAction{
-			Action:  TASK_ADDITION_ACTION,
-			Context: nil,
-		})
-	default:
-		user, ok := env.users.data[Update.GetChatId()]
-		if !ok {
-			log.Printf("user with chat id - [%v] is not found", Update.GetChatId())
-			return
-		}
-
-		//process user input based on last action and context
-		switch user.LastAction.Action {
-		case START_ACTION:
-			if Update.Message.Text == "1 hour" {
-				user.setFocusDuration(60)
-			}
-
-			index := findStringInSlice(focusDurations[0:3], Update.Message.Text)
-			if index == -1 {
-				log.Printf("invalid focus duration - [%v]", Update.Message.Text)
-				return
-			}
-			user.setFocusDuration((index + 1) * 15)
-			env.users.data[Update.GetChatId()] = user
-			env.users.saveLastUserAction(Update.GetChatId(), UserAction{
-				Action:  FOCUS_SELECTION_ACTION,
-				Context: nil,
-			})
-			env.db.saveUserData(Update.GetChatId(), user)
-
-			msgText := fmt.Sprintf("Please select how long you want your breaks to be?")
-			keyboardMsg = TKeyboardMessageSend{
-				ChatId:         Update.GetChatId(),
-				Text:           msgText,
-				KeyboardMarkup: GenerateListKeyboard(pauseDurations),
-			}
-		case FOCUS_SELECTION_ACTION:
-			if Update.Message.Text == "30 minutes" {
-				user.setBreakDuration(30)
-			}
-
-			index := findStringInSlice(pauseDurations[0:3], Update.Message.Text)
-			if index == -1 {
-				log.Printf("invalid pause duration - [%v]", Update.Message.Text)
-				return
-			}
-			user.setBreakDuration((index + 1) * 5)
-			env.users.data[Update.GetChatId()] = user
-			env.users.saveLastUserAction(Update.GetChatId(), UserAction{
-				Action:  BREAK_SELECTION_ACTION,
-				Context: nil,
-			})
-			env.db.saveUserData(Update.GetChatId(), user)
-
-			msgText := fmt.Sprintf("Great! You are all set to start your first focus session!")
-			keyboardMsg = TKeyboardMessageSend{
-				ChatId:         Update.GetChatId(),
-				Text:           msgText,
-				KeyboardMarkup: GenerateMainKeyboard(),
-			}
-		case TASK_ADDITION_ACTION:
-			_, ok := env.users.data[Update.GetChatId()]
-			if !ok {
-				log.Printf("user with chat id - [%v] is not found", Update.GetChatId())
-				return
-			}
-
-			taskName := Update.Message.Text
-			if len(taskName) == 0 {
-				msgText := fmt.Sprintf("Please enter at least one character")
-				Msg = TMessageSend{
-					ChatId: Update.GetChatId(),
-					Text:   msgText,
-				}
-				sendKeyboard = false
-				env.users.saveLastUserAction(Update.GetChatId(), UserAction{
-					Action:  TASK_ADDITION_ACTION,
-					Context: nil,
-				})
-			} else if len(taskName) > 32 {
-				msgText := fmt.Sprintf("Please enter less than 32 characters")
-				Msg = TMessageSend{
-					ChatId: Update.GetChatId(),
-					Text:   msgText,
-				}
-				sendKeyboard = false
-				env.users.saveLastUserAction(Update.GetChatId(), UserAction{
-					Action:  TASK_ADDITION_ACTION,
-					Context: nil,
-				})
-			} else {
-				env.tmpTasks[Update.GetChatId()] = Task{Name: taskName}
-				msgText := fmt.Sprintf("Please select how many focus sessions you want to spend on a task?")
-				keyboardMsg = TKeyboardMessageSend{
-					ChatId:         Update.GetChatId(),
-					Text:           msgText,
-					KeyboardMarkup: GenerateListKeyboard(focusSessions),
-				}
-				env.users.saveLastUserAction(Update.GetChatId(), UserAction{
-					Action:  TASK_NAME_SELECTION_ACTION,
-					Context: nil,
-				})
-			}
-		case TASK_NAME_SELECTION_ACTION:
-			user, ok := env.users.data[Update.GetChatId()]
-			if !ok {
-				log.Printf("user with chat id - [%v] is not found", Update.GetChatId())
-				return
-			}
-
-			sessionsCount, err := strconv.Atoi(Update.Message.Text)
-			if err != nil {
-				msgText := fmt.Sprintf("Please select how many focus sessions you want to spend on a task?")
-				keyboardMsg = TKeyboardMessageSend{
-					ChatId:         Update.GetChatId(),
-					Text:           msgText,
-					KeyboardMarkup: GenerateListKeyboard(focusSessions),
-				}
-			} else if sessionsCount < 1 || sessionsCount > 10 {
-				msgText := fmt.Sprintf("Please select the number of sessions between 1 and 10")
-				keyboardMsg = TKeyboardMessageSend{
-					ChatId:         Update.GetChatId(),
-					Text:           msgText,
-					KeyboardMarkup: GenerateListKeyboard(focusSessions),
-				}
-			} else {
-				newTask := env.tmpTasks[Update.GetChatId()]
-				user.Workday.addTask(newTask)
-				env.users.data[Update.GetChatId()] = user
-
-				msgText := fmt.Sprintf("Great! You are all set to start your focus session!")
-				keyboardMsg = TKeyboardMessageSend{
-					ChatId:         Update.GetChatId(),
-					Text:           msgText,
-					KeyboardMarkup: GenerateMainKeyboard(),
-				}
-			}
-		default:
-			msgText := fmt.Sprintf("Sorry, I don't understand you. Please select one of the options below")
-			keyboardMsg = TKeyboardMessageSend{
+			msgText := fmt.Sprintf("Oops! I don't know you yet. Please type %v to start", TTEXT_START)
+			Msg = TMessageSend{
 				ChatId: Update.GetChatId(),
 				Text:   msgText,
 			}
+		} else {
+			switch user.LastAction.CurrentMenu {
+			case MENU_MAIN_MENU:
+				processedResult, err = processMainMenu(Update.Message.Text, user, Update.GetChatId(), env)
+			case MENU_INFOCUS:
+				processedResult, err = processInFocusMenu(Update.Message.Text, Update.GetChatId(), &env.timeKeepers)
+			case MENU_INBREAK:
+				processedResult, err = processInBreakMenu(Update.Message.Text, Update.GetChatId(), &env.timeKeepers)
+			case MENU_INIT_FOCUS:
+				processedResult, err = processInitFocusMenu(Update.Message.Text, Update.GetChatId(), user, &env.users, focusDurations, pauseDurations)
+			case MENU_INIT_BREAK:
+				processedResult, err = processInitBreakMenu(Update.Message.Text, Update.GetChatId(), user, &env.users, pauseDurations)
+			case MENU_SETTINGS:
+				processedResult, err = processSettingsMenu(Update.Message.Text, user)
+			case MENU_SETTINGS_WORKDAY:
+				processedResult, err = processSettingsWorkdayMenu(Update.Message.Text, Update.GetChatId(), user, &env.users)
+			case MENU_SETTINGS_WORKDAY_TASK_EDIT:
+				processedResult, err = processSettingsWorkdayTaskEditMenu(Update.Message.Text, Update.GetChatId(), user, &env.users)
+			}
 
+			if err != nil {
+				log.Println(err)
+				return
+			}
 		}
 	}
 
-	if sendKeyboard {
-		env.marshalAndSendMessage(keyboardMsg)
+	user, ok := env.users.data[Update.GetChatId()]
+	if !ok {
+		log.Printf("user with chat id - [%v] is not found", Update.GetChatId())
 	} else {
+		env.users.saveLastUserAction(Update.GetChatId(), processedResult.userAction)
+		env.db.saveUserData(Update.GetChatId(), user)
+	}
+
+	fmt.Printf("Processed result - [%v]", processedResult)
+	switch processedResult.responseType {
+	case RESPONSE_TYPE_KEYBOARD:
+		keyboardMsg = TKeyboardMessageSend{
+			ChatId:         Update.GetChatId(),
+			Text:           processedResult.replyText,
+			KeyboardMarkup: processedResult.replyKeyboard,
+		}
+		env.marshalAndSendMessage(keyboardMsg)
+	case RESPONSE_TYPE_TEXT:
+		Msg = TMessageSend{
+			ChatId: Update.GetChatId(),
+			Text:   processedResult.replyText,
+		}
 		env.marshalAndSendMessage(Msg)
 	}
 	log.Printf("Successfully processed message from user - [%v]", Update.Message.From.FirstName)
-}
-
-func (env *environment) startKeeperHelper(chatId ChatId, lastAction int) (User, error) {
-	user, ok := env.users.data[chatId]
-	if !ok {
-		return user, fmt.Errorf("user with chat id - [%v] is not found", chatId)
-	}
-	_, ok = env.timeKeepers[chatId]
-	if ok {
-		return user, fmt.Errorf("user with chat id - [%v] already has a time keeper", chatId)
-	}
-
-	env.timeKeepers[chatId] = startTimeKeeper(chatId, user.FocusDurationMins, env.onTimekeepStopped)
-	env.users.saveLastUserAction(chatId, UserAction{
-		Action:  lastAction,
-		Context: nil,
-	})
-	return user, nil
-}
-
-func (env *environment) stopKeeperHelper(chatId ChatId, successText string, lastAction int) (*TKeyboardMessageSend, error) {
-	_, ok := env.users.data[chatId]
-	if !ok {
-		return nil, fmt.Errorf("user with chat id - [%v] is not found", chatId)
-	}
-
-	tk, ok := env.timeKeepers[chatId]
-	if !ok {
-		msgText := fmt.Sprintf("You don't have an active focus nor break session")
-		msg := TKeyboardMessageSend{
-			ChatId:         chatId,
-			Text:           msgText,
-			KeyboardMarkup: GenerateMainKeyboard(),
-		}
-
-		return &msg, nil
-	} else {
-		ok = tk.stopTimeKeep()
-		if !ok {
-			return &TKeyboardMessageSend{}, fmt.Errorf("failed to stop time keeper for user with chat id because it was already stopped - [%v]", chatId)
-		}
-		delete(env.timeKeepers, chatId)
-
-		msgText := successText
-		msg := TKeyboardMessageSend{
-			ChatId:         chatId,
-			Text:           msgText,
-			KeyboardMarkup: GenerateMainKeyboard(),
-		}
-		env.users.saveLastUserAction(chatId, UserAction{
-			Action:  lastAction,
-			Context: nil,
-		})
-		return &msg, nil
-	}
 }
 
 type timeekeepStoppedCallback func(chatId ChatId)
@@ -702,9 +443,16 @@ func GenerateCustomKeyboard(menuOptions ...string) TReplyKeyboard {
 	}
 
 	return TReplyKeyboard{
-		Keyboard:       keyboard,
-		ResizeKeyboard: true,
+		Keyboard:        keyboard,
+		ResizeKeyboard:  true,
+		OneTimeKeyboard: true,
 	}
+}
+
+func generateWorkdaySettingsKeyboard(keyboardFields []string) TReplyKeyboard {
+	keyboardFields = append(keyboardFields, TTEXT_ADD_TASK)
+	keyboardFields = append(keyboardFields, TTEXT_MAIN_MENU)
+	return GenerateCustomKeyboard(keyboardFields...)
 }
 
 func GenerateKeyboardRow(btnText string) []TKeyBoardButton {
@@ -713,19 +461,6 @@ func GenerateKeyboardRow(btnText string) []TKeyBoardButton {
 		Text: btnText,
 	}
 	return keyboard
-}
-
-func GenerateListKeyboard(elems []string) TReplyKeyboard {
-	fmt.Printf("DEBUG: GenerateListKeyboard: list %v\n", elems)
-
-	keyboard := make([][]TKeyBoardButton, len(elems))
-	for i, elem := range elems {
-		keyboard[i] = GenerateKeyboardRow(elem)
-	}
-	return TReplyKeyboard{
-		Keyboard:       keyboard,
-		ResizeKeyboard: true,
-	}
 }
 
 func (env *environment) generateTelegramUrl(action string) string {

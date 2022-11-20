@@ -9,7 +9,7 @@ import (
 type ChatId int64
 
 type UserAction struct {
-	CurrentMenu int
+	CurrentMenu int               `json:"current_menu"`
 	Action      int               `json:"menu_option"`
 	Context     map[string]string `json:"context"`
 }
@@ -52,7 +52,7 @@ func (u *User) setBreakDuration(duration int) error {
 	case 15:
 		u.BreakDurationMins = 15
 	case 20:
-		u.BreakDurationMins = 30
+		u.BreakDurationMins = 20
 	default:
 		return fmt.Errorf("invalid break duration [%v]", duration)
 	}
@@ -83,6 +83,17 @@ func (u *Users) add(chatId ChatId, user User) (result bool) {
 	return
 }
 
+func (u *Users) updateUser(chatId ChatId, user User) error {
+	u.mut.Lock()
+	if _, ok := u.data[chatId]; ok {
+		u.data[chatId] = user
+	} else {
+		return fmt.Errorf("user with chat id [%v] not found", chatId)
+	}
+	u.mut.Unlock()
+	return nil
+}
+
 func (u *Users) saveLastUserAction(chatId ChatId, action UserAction) {
 	u.mut.Lock()
 	if user, ok := u.data[chatId]; ok {
@@ -93,6 +104,10 @@ func (u *Users) saveLastUserAction(chatId ChatId, action UserAction) {
 	}
 	u.mut.Unlock()
 }
+
+const (
+	MAX_TASKS_PER_DAY = 8
+)
 
 type UserWorkday struct {
 	TasksForDay     []Task `json:"tasks_for_day"`
@@ -108,8 +123,41 @@ func (u *UserWorkday) getTaskNames() []string {
 	return names
 }
 
+func (u *UserWorkday) getTaskByName(name string) (Task, error) {
+	for _, task := range u.TasksForDay {
+		if task.Name == name {
+			return task, nil
+		}
+	}
+	return Task{}, fmt.Errorf("task with name [%v] not found", name)
+}
+
 func (u *UserWorkday) addTask(task Task) {
 	u.TasksForDay = append(u.TasksForDay, task)
+}
+
+func (u *UserWorkday) deleteTask(name string) error {
+	for i, task := range u.TasksForDay {
+		if task.Name == name {
+			u.TasksForDay = append(u.TasksForDay[:i], u.TasksForDay[i+1:]...)
+			return nil
+		}
+	}
+	return fmt.Errorf("task with name [%v] not found", name)
+}
+
+func (u *UserWorkday) updateTask(taskName string, task Task) {
+	var i int
+	var t Task
+	for i, t = range u.TasksForDay {
+		if t.Name == taskName {
+			u.TasksForDay[i] = task
+		}
+	}
+
+	if i == len(u.TasksForDay)-1 {
+		log.Printf("task with name [%v] not found", taskName)
+	}
 }
 
 type Task struct {
