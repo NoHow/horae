@@ -263,14 +263,13 @@ func (env *environment) rootHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Successfully processed message from user - [%v]", Update.Message.From.FirstName)
 }
 
-type timeekeepStoppedCallback func(chatId ChatId)
+type timeekeepStoppedCallback func(chatId ChatId, finishMessage string)
 
-func (env *environment) onTimekeepStopped(chatId ChatId) {
+func (env *environment) onTimekeepStopped(chatId ChatId, finishMessage string) {
 	delete(env.timeKeepers, chatId)
-	msgText := fmt.Sprintf("Focus session ended! You can take a break now")
 	msg := TKeyboardMessageSend{
 		ChatId:         chatId,
-		Text:           msgText,
+		Text:           finishMessage,
 		KeyboardMarkup: GenerateMainKeyboard(),
 	}
 
