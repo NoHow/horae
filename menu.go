@@ -276,7 +276,7 @@ func processSettingsWorkdayMenu(messageText string, chatId ChatId, user User, us
 		}
 		result = MenuProcessorResult{
 			responseType:  RESPONSE_TYPE_KEYBOARD,
-			replyKeyboard: GenerateCustomKeyboard(TTEXT_EDIT_TASK_NAME, TTEXT_EDIT_TASK_PERIODS, TTEXT_DELETE_TASK),
+			replyKeyboard: GenerateCustomKeyboard(TTEXT_EDIT_TASK_NAME, TTEXT_EDIT_TASK_PERIODS, TTEXT_EDIT_TASK_ORDER, TTEXT_DELETE_TASK),
 			replyText:     fmt.Sprintf("Task: %v, Focus Periods: %v", task.Name, task.FocusPeriods),
 			userAction:    UserAction{CurrentMenu: MENU_SETTINGS_WORKDAY_TASK_EDIT, Context: map[string]string{"taskName": task.Name}},
 		}
@@ -306,7 +306,7 @@ func processSettingsWorkdayTaskEditMenu(messageText string, chatId ChatId, user 
 		users.updateUser(chatId, user)
 		result = MenuProcessorResult{
 			responseType:  RESPONSE_TYPE_KEYBOARD,
-			replyKeyboard: GenerateCustomKeyboard(TTEXT_EDIT_TASK_NAME, TTEXT_EDIT_TASK_PERIODS, TTEXT_DELETE_TASK, TTEXT_MAIN_MENU),
+			replyKeyboard: GenerateCustomKeyboard(TTEXT_EDIT_TASK_NAME, TTEXT_EDIT_TASK_PERIODS, TTEXT_EDIT_TASK_ORDER, TTEXT_DELETE_TASK, TTEXT_MAIN_MENU),
 			replyText:     fmt.Sprintf("Updated task name to the %v, what do you want to do next?", newTaskName),
 			userAction:    UserAction{CurrentMenu: MENU_SETTINGS_WORKDAY_TASK_EDIT, Context: map[string]string{"taskName": newTaskName}},
 		}
@@ -333,8 +333,34 @@ func processSettingsWorkdayTaskEditMenu(messageText string, chatId ChatId, user 
 		users.updateUser(chatId, user)
 		result = MenuProcessorResult{
 			responseType:  RESPONSE_TYPE_KEYBOARD,
-			replyKeyboard: GenerateCustomKeyboard(TTEXT_EDIT_TASK_NAME, TTEXT_EDIT_TASK_PERIODS, TTEXT_DELETE_TASK, TTEXT_MAIN_MENU),
+			replyKeyboard: GenerateCustomKeyboard(TTEXT_EDIT_TASK_NAME, TTEXT_EDIT_TASK_PERIODS, TTEXT_EDIT_TASK_ORDER, TTEXT_DELETE_TASK, TTEXT_MAIN_MENU),
 			replyText:     fmt.Sprintf("Updated task periods to the %v, what do you want to do next?", taskPeriods),
+			userAction:    UserAction{CurrentMenu: MENU_SETTINGS_WORKDAY_TASK_EDIT, Context: map[string]string{"taskName": taskName}},
+		}
+	case SELECT_TASK_ORDER_ACTION:
+		taskOrder, err := strconv.Atoi(messageText)
+		taskNames := user.Workday.getTaskNames()
+		var invalidInputMsg string
+		if err != nil {
+			invalidInputMsg = "Invalid input, please try again"
+		} else if taskOrder < 1 || taskOrder > len(taskNames) {
+			invalidInputMsg = fmt.Sprintf("Task order should be greater than 0 and less than %v", len(taskNames))
+		}
+		if invalidInputMsg != "" {
+			return MenuProcessorResult{
+				responseType: RESPONSE_TYPE_KEYBOARD,
+				replyText:    invalidInputMsg,
+				userAction:   UserAction{CurrentMenu: MENU_SETTINGS_WORKDAY, Action: SELECT_TASK_ORDER_ACTION, Context: map[string]string{"taskName": taskName}},
+			}, nil
+		}
+
+		user.Workday.setTaskPosition(taskName, taskOrder-1)
+		users.updateUser(chatId, user)
+		updatedTaskQueue := generateTaskPositionsText(taskName, user.Workday.getTaskNames())
+		result = MenuProcessorResult{
+			responseType:  RESPONSE_TYPE_KEYBOARD,
+			replyKeyboard: GenerateCustomKeyboard(TTEXT_EDIT_TASK_NAME, TTEXT_EDIT_TASK_PERIODS, TTEXT_EDIT_TASK_ORDER, TTEXT_DELETE_TASK, TTEXT_MAIN_MENU),
+			replyText:     fmt.Sprintf("Updated task order!\n %v Please select what do you want to do next?", updatedTaskQueue),
 			userAction:    UserAction{CurrentMenu: MENU_SETTINGS_WORKDAY_TASK_EDIT, Context: map[string]string{"taskName": taskName}},
 		}
 	}
@@ -357,6 +383,17 @@ func processSettingsWorkdayTaskEditMenu(messageText string, chatId ChatId, user 
 			replyText:     "Please select number number of focus sessions for this task",
 			userAction:    UserAction{CurrentMenu: MENU_SETTINGS_WORKDAY_TASK_EDIT, Action: SELECT_TASK_PERIODS_ACTION, Context: map[string]string{"taskName": taskName}},
 		}
+	case TTEXT_EDIT_TASK_ORDER:
+		taskNames := user.Workday.getTaskNames()
+		positions := []string{"1", "2", "3", "4", "5", "6", "7", "8", "9"}
+		message := "Please select new position for the task\n"
+		message += generateTaskPositionsText(taskName, taskNames)
+		result = MenuProcessorResult{
+			responseType:  RESPONSE_TYPE_KEYBOARD,
+			replyKeyboard: GenerateCustomKeyboard(positions[0:len(taskNames)]...),
+			replyText:     message,
+			userAction:    UserAction{CurrentMenu: MENU_SETTINGS_WORKDAY_TASK_EDIT, Action: SELECT_TASK_ORDER_ACTION, Context: map[string]string{"taskName": taskName}},
+		}
 	case TTEXT_DELETE_TASK:
 		user.Workday.deleteTask(taskName)
 		users.updateUser(chatId, user)
@@ -375,6 +412,17 @@ func processSettingsWorkdayTaskEditMenu(messageText string, chatId ChatId, user 
 		}
 	}
 	return
+}
+
+func generateTaskPositionsText(priorityTask string, taskNames []string) (message string) {
+	for i, name := range taskNames {
+		if name != priorityTask {
+			message = message + fmt.Sprintf("%v. %v\n", i+1, name)
+		} else {
+			message = message + fmt.Sprintf("<b>%v. %v</b>\n", i+1, name)
+		}
+	}
+	return message
 }
 
 func processInitFocusMenu(messageText string, id ChatId, user User, users *Users, focusDurations []string, pauseDurations []string) (result MenuProcessorResult, err error) {

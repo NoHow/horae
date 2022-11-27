@@ -58,6 +58,7 @@ type TKeyboardMessageSend struct {
 	ChatId         ChatId         `json:"chat_id"`
 	Text           string         `json:"text"`
 	KeyboardMarkup TReplyKeyboard `json:"reply_markup"`
+	ParseMode      string         `json:"parse_mode"`
 }
 
 type TUser struct {
@@ -77,9 +78,9 @@ func (u *TUpdate) GetChatId() ChatId {
 }
 
 const (
-	TTEXT_START     = "/start"
-	TTEXT_DURATIONS = "/durations"
-	TTEXT_MAIN      = "/main"
+	TTEXT_START_COMMAND     = "/start"
+	TTEXT_DURATIONS_COMMAND = "/durations"
+	TTEXT_MAIN_MENU_COMMAND = "/main"
 
 	TTEXT_MAIN_MENU             = "Main menu"
 	TTEXT_START_FOCUS           = "Let's focus"
@@ -94,6 +95,7 @@ const (
 	TTEXT_ADD_TASK              = "Add task"
 	TTEXT_EDIT_TASK_NAME        = "Edit task name"
 	TTEXT_EDIT_TASK_PERIODS     = "Edit the amount of periods"
+	TTEXT_EDIT_TASK_ORDER       = "Edit task order"
 	TTEXT_DELETE_TASK           = "Delete task"
 )
 
@@ -102,6 +104,7 @@ const (
 	START_ACTION
 	SELECT_TASK_NAME_ACTION
 	SELECT_TASK_PERIODS_ACTION
+	SELECT_TASK_ORDER_ACTION
 )
 
 func getPathValue(r *http.Request, pathCheck *regexp.Regexp) (string, error) {
@@ -153,7 +156,7 @@ func (env *environment) rootHandler(w http.ResponseWriter, r *http.Request) {
 	pauseDurations := []string{"5 minutes", "10 minutes", "15 minutes", "20 minutes"}
 	var processedResult MenuProcessorResult
 	switch Update.Message.Text {
-	case TTEXT_START:
+	case TTEXT_START_COMMAND:
 		newUser := User{
 			FirstName: Update.Message.From.FirstName,
 		}
@@ -165,7 +168,7 @@ func (env *environment) rootHandler(w http.ResponseWriter, r *http.Request) {
 			processedResult.replyKeyboard = GenerateCustomKeyboard(focusDurations...)
 			processedResult.userAction = UserAction{CurrentMenu: MENU_MAIN_MENU}
 		}
-	case TTEXT_MAIN:
+	case TTEXT_MAIN_MENU_COMMAND:
 		fmt.Printf("User %v selected main menu\n", Update.GetChatId())
 		_, ok := env.users.data[Update.GetChatId()]
 		if !ok {
@@ -176,7 +179,7 @@ func (env *environment) rootHandler(w http.ResponseWriter, r *http.Request) {
 		processedResult.replyText = "Main menu"
 		processedResult.replyKeyboard = GenerateMainKeyboard()
 		processedResult.userAction = UserAction{CurrentMenu: MENU_MAIN_MENU}
-	case TTEXT_DURATIONS:
+	case TTEXT_DURATIONS_COMMAND:
 		user, ok := env.users.data[Update.GetChatId()]
 		if !ok {
 			log.Printf("user with chat id - [%v] is not found", Update.GetChatId())
@@ -191,7 +194,7 @@ func (env *environment) rootHandler(w http.ResponseWriter, r *http.Request) {
 	if processedResult.responseType == RESPONSE_TYPE_NONE {
 		user, ok := env.users.data[Update.GetChatId()]
 		if !ok {
-			msgText := fmt.Sprintf("Oops! I don't know you yet. Please type %v to start", TTEXT_START)
+			msgText := fmt.Sprintf("Oops! I don't know you yet. Please type %v to start", TTEXT_START_COMMAND)
 			Msg = TMessageSend{
 				ChatId: Update.GetChatId(),
 				Text:   msgText,
@@ -238,6 +241,7 @@ func (env *environment) rootHandler(w http.ResponseWriter, r *http.Request) {
 			ChatId:         Update.GetChatId(),
 			Text:           processedResult.replyText,
 			KeyboardMarkup: processedResult.replyKeyboard,
+			ParseMode:      "HTML",
 		}
 		env.marshalAndSendMessage(keyboardMsg)
 	case RESPONSE_TYPE_TEXT:
@@ -445,7 +449,7 @@ func GenerateCustomKeyboard(menuOptions ...string) TReplyKeyboard {
 	return TReplyKeyboard{
 		Keyboard:        keyboard,
 		ResizeKeyboard:  true,
-		OneTimeKeyboard: true,
+		OneTimeKeyboard: false,
 	}
 }
 

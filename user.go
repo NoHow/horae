@@ -160,6 +160,19 @@ func (u *UserWorkday) updateTask(taskName string, task Task) {
 	}
 }
 
+func (u *UserWorkday) setTaskPosition(taskName string, newIndex int) error {
+	var i int
+	var t Task
+	for i, t = range u.TasksForDay {
+		if t.Name == taskName {
+			u.TasksForDay = append(u.TasksForDay[:i], u.TasksForDay[i+1:]...)
+			u.TasksForDay = append(u.TasksForDay[:newIndex], append([]Task{t}, u.TasksForDay[newIndex:]...)...)
+			return nil
+		}
+	}
+	return fmt.Errorf("task with name [%v] not found", taskName)
+}
+
 type Task struct {
 	Name         string
 	FocusPeriods int
