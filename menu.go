@@ -65,11 +65,11 @@ func processMainMenu(messageText string, user User, chatId ChatId, env *environm
 			}, fmt.Errorf("user with chat id - [%v] already has a time keeper", chatId)
 		}
 
-		env.timeKeepers[chatId] = startTimeKeeper(chatId, user.FocusDurationMins, env.onTimekeepStopped)
+		env.timeKeepers[chatId] = startTimeKeeper(chatId, user.BreakDurationMins, env.onTimekeepStopped)
 		result = MenuProcessorResult{
 			responseType:  RESPONSE_TYPE_KEYBOARD,
 			replyKeyboard: GenerateCustomKeyboard(TTEXT_STOP_BREAK),
-			replyText:     fmt.Sprintf("Focus started! I will keep your time guard for %v minutes", user.FocusDurationMins),
+			replyText:     fmt.Sprintf("Focus started! I will keep your time guard for %v minutes", user.BreakDurationMins),
 			userAction:    UserAction{CurrentMenu: MENU_INBREAK},
 		}
 	case TTEXT_SETTINGS:
