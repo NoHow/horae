@@ -14,9 +14,9 @@ const (
 	MENU_INBREAK
 	MENU_SETTINGS
 	MENU_SETTINGS_WORKDAY
+	MENU_SETTINGS_FOCUS_DURATION
+	MENU_SETTINGS_BREAK_DURATION
 	MENU_SETTINGS_WORKDAY_TASK_EDIT
-	MENU_SETTINGS_TASK_NAME
-	MENU_SETTINGS_FOCUS_PERIODS
 )
 
 const (
@@ -75,7 +75,7 @@ func processMainMenu(messageText string, user User, chatId ChatId, env *environm
 	case TTEXT_SETTINGS:
 		result = MenuProcessorResult{
 			responseType:  RESPONSE_TYPE_KEYBOARD,
-			replyKeyboard: GenerateCustomKeyboard(TTEXT_CHANGE_FOCUS_DURATION, TTEXT_CHANGE_BREAK_DURATION, TTEXT_CHANGE_WORKDAY),
+			replyKeyboard: GenerateCustomKeyboard(TTEXT_FOCUS_DURATION, TTEXT_BREAK_DURATION, TTEXT_CHANGE_WORKDAY),
 			replyText:     "Settings",
 			userAction:    UserAction{CurrentMenu: MENU_SETTINGS},
 		}
@@ -149,13 +149,19 @@ func processInBreakMenu(messageText string, chatId ChatId, timeKeepers *map[Chat
 
 func processSettingsMenu(messageText string, user User) (result MenuProcessorResult, err error) {
 	switch messageText {
-	case TTEXT_CHANGE_FOCUS_DURATION:
+	case TTEXT_FOCUS_DURATION:
 		result = MenuProcessorResult{
-			responseType: RESPONSE_TYPE_NONE,
+			responseType:  RESPONSE_TYPE_KEYBOARD,
+			replyKeyboard: GenerateCustomKeyboard(TTEXT_CHANGE_FOCUS_DURATION, TTEXT_BACK),
+			replyText:     fmt.Sprintf("Your current focus duration is %v minutes. Do you want to change it?", user.FocusDurationMins),
+			userAction:    UserAction{CurrentMenu: MENU_SETTINGS_FOCUS_DURATION},
 		}
-	case TTEXT_CHANGE_BREAK_DURATION:
+	case TTEXT_BREAK_DURATION:
 		result = MenuProcessorResult{
-			responseType: RESPONSE_TYPE_NONE,
+			responseType:  RESPONSE_TYPE_KEYBOARD,
+			replyKeyboard: GenerateCustomKeyboard(TTEXT_CHANGE_BREAK_DURATION, TTEXT_BACK),
+			replyText:     fmt.Sprintf("Your current break duration is %v minutes. Do you want to change it?", user.BreakDurationMins),
+			userAction:    UserAction{CurrentMenu: MENU_SETTINGS_BREAK_DURATION},
 		}
 	case TTEXT_CHANGE_WORKDAY:
 		result = MenuProcessorResult{
@@ -163,6 +169,94 @@ func processSettingsMenu(messageText string, user User) (result MenuProcessorRes
 			replyKeyboard: generateWorkdaySettingsKeyboard(user.Workday.getTaskNames()),
 			replyText:     "Choose task to edit",
 			userAction:    UserAction{CurrentMenu: MENU_SETTINGS_WORKDAY},
+		}
+	}
+	return
+}
+
+func processSettingsFocusDurationMenu(messageText string, chatId ChatId, user User, users *Users, possibleDurations []string) (result MenuProcessorResult, err error) {
+	switch user.LastAction.Action {
+	case CHANGE_FOCUS_DURATION_ACTION:
+		if messageText == "1 hour" {
+			user.setFocusDuration(60)
+		}
+
+		index := findStringInSlice(possibleDurations, messageText)
+		if index == -1 {
+			return MenuProcessorResult{
+				responseType: RESPONSE_TYPE_TEXT,
+				replyText:    "Oops, looks like you have entered wrong value. Please try again",
+				userAction:   UserAction{CurrentMenu: MENU_SETTINGS_FOCUS_DURATION},
+			}, nil
+		}
+
+		user.setFocusDuration((index + 1) * 15)
+		users.updateUser(chatId, user)
+
+		result = MenuProcessorResult{
+			responseType:  RESPONSE_TYPE_KEYBOARD,
+			replyKeyboard: GenerateMainKeyboard(),
+			replyText:     fmt.Sprintf("Your focus duration is now %v minutes! Going back to the main menu", user.FocusDurationMins),
+			userAction:    UserAction{CurrentMenu: MENU_MAIN_MENU},
+		}
+	}
+
+	switch messageText {
+	case TTEXT_CHANGE_FOCUS_DURATION:
+		result = MenuProcessorResult{
+			responseType:  RESPONSE_TYPE_KEYBOARD,
+			replyKeyboard: GenerateCustomKeyboard(possibleDurations...),
+			replyText:     "Choose new focus duration",
+			userAction:    UserAction{CurrentMenu: MENU_SETTINGS_FOCUS_DURATION, Action: CHANGE_FOCUS_DURATION_ACTION},
+		}
+	case TTEXT_BACK:
+		result = MenuProcessorResult{
+			responseType:  RESPONSE_TYPE_KEYBOARD,
+			replyKeyboard: GenerateCustomKeyboard(TTEXT_FOCUS_DURATION, TTEXT_BREAK_DURATION, TTEXT_CHANGE_WORKDAY),
+			replyText:     "Going back to the settings menu",
+			userAction:    UserAction{CurrentMenu: MENU_SETTINGS},
+		}
+	}
+	return
+}
+
+func processSettingsBreakDurationMenu(messageText string, chatId ChatId, user User, users *Users, possibleDurations []string) (result MenuProcessorResult, err error) {
+	switch user.LastAction.Action {
+	case CHANGE_BREAK_DURATION_ACTION:
+		index := findStringInSlice(possibleDurations, messageText)
+		if index == -1 {
+			return MenuProcessorResult{
+				responseType: RESPONSE_TYPE_TEXT,
+				replyText:    "Oops, looks like you have entered wrong value. Please try again",
+				userAction:   UserAction{CurrentMenu: MENU_SETTINGS_BREAK_DURATION},
+			}, nil
+		}
+
+		user.setBreakDuration((index + 1) * 5)
+		users.updateUser(chatId, user)
+
+		result = MenuProcessorResult{
+			responseType:  RESPONSE_TYPE_KEYBOARD,
+			replyKeyboard: GenerateMainKeyboard(),
+			replyText:     fmt.Sprintf("Your break duration is now %v minutes! Going back to the main menu", user.BreakDurationMins),
+			userAction:    UserAction{CurrentMenu: MENU_MAIN_MENU},
+		}
+	}
+
+	switch messageText {
+	case TTEXT_CHANGE_BREAK_DURATION:
+		result = MenuProcessorResult{
+			responseType:  RESPONSE_TYPE_KEYBOARD,
+			replyKeyboard: GenerateCustomKeyboard(possibleDurations...),
+			replyText:     "Choose new break duration",
+			userAction:    UserAction{CurrentMenu: MENU_SETTINGS_BREAK_DURATION, Action: CHANGE_BREAK_DURATION_ACTION},
+		}
+	case TTEXT_BACK:
+		result = MenuProcessorResult{
+			responseType:  RESPONSE_TYPE_KEYBOARD,
+			replyKeyboard: GenerateCustomKeyboard(TTEXT_FOCUS_DURATION, TTEXT_BREAK_DURATION, TTEXT_CHANGE_WORKDAY),
+			replyText:     "Going back to the settings menu",
+			userAction:    UserAction{CurrentMenu: MENU_SETTINGS},
 		}
 	}
 	return
