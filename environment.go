@@ -89,19 +89,24 @@ const (
 	TTEXT_TIME_LEFT             = "Time left"
 	TTEXT_START_BREAK           = "Let's take a break"
 	TTEXT_STOP_BREAK            = "Stop break"
-	TTEXT_CHANGE_FOCUS_DURATION = "Focus duration"
-	TTEXT_CHANGE_BREAK_DURATION = "Break duration"
+	TTEXT_FOCUS_DURATION        = "Focus duration"
+	TTEXT_BREAK_DURATION        = "Break duration"
+	TTEXT_CHANGE_FOCUS_DURATION = "Change focus duration"
+	TTEXT_CHANGE_BREAK_DURATION = "Change break duration"
 	TTEXT_CHANGE_WORKDAY        = "Workday"
 	TTEXT_ADD_TASK              = "Add task"
 	TTEXT_EDIT_TASK_NAME        = "Edit task name"
 	TTEXT_EDIT_TASK_PERIODS     = "Edit the amount of periods"
 	TTEXT_EDIT_TASK_ORDER       = "Edit task order"
 	TTEXT_DELETE_TASK           = "Delete task"
+	TTEXT_BACK                  = "Back"
 )
 
 const (
 	INVALID_ACTION = iota
 	START_ACTION
+	CHANGE_FOCUS_DURATION_ACTION
+	CHANGE_BREAK_DURATION_ACTION
 	SELECT_TASK_NAME_ACTION
 	SELECT_TASK_PERIODS_ACTION
 	SELECT_TASK_ORDER_ACTION
@@ -213,6 +218,10 @@ func (env *environment) rootHandler(w http.ResponseWriter, r *http.Request) {
 				processedResult, err = processInitBreakMenu(Update.Message.Text, Update.GetChatId(), user, &env.users, pauseDurations)
 			case MENU_SETTINGS:
 				processedResult, err = processSettingsMenu(Update.Message.Text, user)
+			case MENU_SETTINGS_FOCUS_DURATION:
+				processedResult, err = processSettingsFocusDurationMenu(Update.Message.Text, Update.GetChatId(), user, &env.users, focusDurations)
+			case MENU_SETTINGS_BREAK_DURATION:
+				processedResult, err = processSettingsBreakDurationMenu(Update.Message.Text, Update.GetChatId(), user, &env.users, pauseDurations)
 			case MENU_SETTINGS_WORKDAY:
 				processedResult, err = processSettingsWorkdayMenu(Update.Message.Text, Update.GetChatId(), user, &env.users)
 			case MENU_SETTINGS_WORKDAY_TASK_EDIT:
