@@ -12,14 +12,14 @@ type TimeKeeper struct {
 	stopMut     sync.Mutex
 }
 
-func startTimeKeeper(chatId ChatId, focusDuration int, callback timeekeepStoppedCallback) *TimeKeeper {
+func startTimeKeeper(chatId ChatId, focusDuration int, finishMessage string, callback timeekeepStoppedCallback) *TimeKeeper {
 	ticker := time.NewTicker(time.Second * 1)
 	tk := TimeKeeper{
 		secondsLeft: 0,
 		isStopped:   false,
 	}
 
-	go tk.watchTime(chatId, focusDuration, ticker, callback)
+	go tk.watchTime(chatId, focusDuration, finishMessage, ticker, callback)
 	return &tk
 }
 
@@ -33,7 +33,7 @@ func (tk *TimeKeeper) stopTimeKeep() bool {
 	return false
 }
 
-func (tk *TimeKeeper) watchTime(chatId ChatId, focusDuration int, ticker *time.Ticker, callback timeekeepStoppedCallback) {
+func (tk *TimeKeeper) watchTime(chatId ChatId, focusDuration int, finishMessage string, ticker *time.Ticker, callback timeekeepStoppedCallback) {
 	tk.secondsLeft = focusDuration * 60
 	for {
 		if tk.isStopped {
@@ -47,7 +47,7 @@ func (tk *TimeKeeper) watchTime(chatId ChatId, focusDuration int, ticker *time.T
 		if tk.secondsLeft == 0 {
 			ok := tk.stopTimeKeep()
 			if ok {
-				callback(chatId)
+				callback(chatId, finishMessage)
 			}
 		}
 	}
