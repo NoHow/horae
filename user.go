@@ -15,11 +15,10 @@ type UserAction struct {
 }
 
 type User struct {
-	FirstName         string      `json:"first_name"`
-	FocusDurationMins int         `json:"focus_duration"`
-	BreakDurationMins int         `json:"break_duration"`
-	LastAction        UserAction  `json:"last_action,omitempty"`
-	Workday           UserWorkday `json:"workday"`
+	FirstName         string     `json:"first_name"`
+	FocusDurationMins int        `json:"focus_duration"`
+	BreakDurationMins int        `json:"break_duration"`
+	LastAction        UserAction `json:"last_action,omitempty"`
 }
 
 type Users struct {
@@ -103,77 +102,4 @@ func (u *Users) saveLastUserAction(chatId ChatId, action UserAction) {
 		log.Printf("user with chat id [%v] not found", chatId)
 	}
 	u.mut.Unlock()
-}
-
-const (
-	MAX_TASKS_PER_DAY = 8
-)
-
-type UserWorkday struct {
-	TasksForDay     []Task `json:"tasks_for_day"`
-	CurrenTaskIndex int    `json:"current_task_index"`
-	PeriodsLeft     int    `json:"periods_left"`
-}
-
-func (u *UserWorkday) getTaskNames() []string {
-	var names []string
-	for _, task := range u.TasksForDay {
-		names = append(names, task.Name)
-	}
-	return names
-}
-
-func (u *UserWorkday) getTaskByName(name string) (Task, error) {
-	for _, task := range u.TasksForDay {
-		if task.Name == name {
-			return task, nil
-		}
-	}
-	return Task{}, fmt.Errorf("task with name [%v] not found", name)
-}
-
-func (u *UserWorkday) addTask(task Task) {
-	u.TasksForDay = append(u.TasksForDay, task)
-}
-
-func (u *UserWorkday) deleteTask(name string) error {
-	for i, task := range u.TasksForDay {
-		if task.Name == name {
-			u.TasksForDay = append(u.TasksForDay[:i], u.TasksForDay[i+1:]...)
-			return nil
-		}
-	}
-	return fmt.Errorf("task with name [%v] not found", name)
-}
-
-func (u *UserWorkday) updateTask(taskName string, task Task) {
-	var i int
-	var t Task
-	for i, t = range u.TasksForDay {
-		if t.Name == taskName {
-			u.TasksForDay[i] = task
-		}
-	}
-
-	if i == len(u.TasksForDay)-1 {
-		log.Printf("task with name [%v] not found", taskName)
-	}
-}
-
-func (u *UserWorkday) setTaskPosition(taskName string, newIndex int) error {
-	var i int
-	var t Task
-	for i, t = range u.TasksForDay {
-		if t.Name == taskName {
-			u.TasksForDay = append(u.TasksForDay[:i], u.TasksForDay[i+1:]...)
-			u.TasksForDay = append(u.TasksForDay[:newIndex], append([]Task{t}, u.TasksForDay[newIndex:]...)...)
-			return nil
-		}
-	}
-	return fmt.Errorf("task with name [%v] not found", taskName)
-}
-
-type Task struct {
-	Name         string
-	FocusPeriods int
 }

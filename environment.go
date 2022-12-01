@@ -24,7 +24,6 @@ type environment struct {
 	db          *hDataBase
 	users       Users
 	timeKeepers map[ChatId]*TimeKeeper
-	tmpTasks    map[ChatId]Task
 }
 
 type TChat struct {
@@ -93,12 +92,6 @@ const (
 	TTEXT_BREAK_DURATION        = "Break duration"
 	TTEXT_CHANGE_FOCUS_DURATION = "Change focus duration"
 	TTEXT_CHANGE_BREAK_DURATION = "Change break duration"
-	TTEXT_CHANGE_WORKDAY        = "Workday"
-	TTEXT_ADD_TASK              = "Add task"
-	TTEXT_EDIT_TASK_NAME        = "Edit task name"
-	TTEXT_EDIT_TASK_PERIODS     = "Edit the amount of periods"
-	TTEXT_EDIT_TASK_ORDER       = "Edit task order"
-	TTEXT_DELETE_TASK           = "Delete task"
 	TTEXT_BACK                  = "Back"
 )
 
@@ -222,10 +215,6 @@ func (env *environment) rootHandler(w http.ResponseWriter, r *http.Request) {
 				processedResult, err = processSettingsFocusDurationMenu(Update.Message.Text, Update.GetChatId(), user, &env.users, focusDurations)
 			case MENU_SETTINGS_BREAK_DURATION:
 				processedResult, err = processSettingsBreakDurationMenu(Update.Message.Text, Update.GetChatId(), user, &env.users, pauseDurations)
-			case MENU_SETTINGS_WORKDAY:
-				processedResult, err = processSettingsWorkdayMenu(Update.Message.Text, Update.GetChatId(), user, &env.users)
-			case MENU_SETTINGS_WORKDAY_TASK_EDIT:
-				processedResult, err = processSettingsWorkdayTaskEditMenu(Update.Message.Text, Update.GetChatId(), user, &env.users)
 			}
 
 			if err != nil {
@@ -405,7 +394,6 @@ func createEnvironment(webhookAction string, botKey string, ipAddress string, ce
 			mut:  sync.Mutex{},
 		},
 		timeKeepers: map[ChatId]*TimeKeeper{},
-		tmpTasks:    map[ChatId]Task{},
 	}
 	tmpString := ""
 	env.db.initDB(&tmpString)
@@ -459,12 +447,6 @@ func GenerateCustomKeyboard(menuOptions ...string) TReplyKeyboard {
 		ResizeKeyboard:  true,
 		OneTimeKeyboard: false,
 	}
-}
-
-func generateWorkdaySettingsKeyboard(keyboardFields []string) TReplyKeyboard {
-	keyboardFields = append(keyboardFields, TTEXT_ADD_TASK)
-	keyboardFields = append(keyboardFields, TTEXT_MAIN_MENU)
-	return GenerateCustomKeyboard(keyboardFields...)
 }
 
 func GenerateKeyboardRow(btnText string) []TKeyBoardButton {
