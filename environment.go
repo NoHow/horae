@@ -164,7 +164,7 @@ func (env *environment) rootHandler(w http.ResponseWriter, r *http.Request) {
 			processedResult.replyText = fmt.Sprintf("Hello %s! I will help you to keep organised with your time!\n"+
 				"Please select how long you want your focus duration to be?", Update.Message.From.FirstName)
 			processedResult.replyKeyboard = GenerateCustomKeyboard(focusDurations...)
-			processedResult.userAction = UserAction{CurrentMenu: MENU_MAIN_MENU}
+			processedResult.userAction = UserAction{CurrentMenu: MENU_INIT_FOCUS}
 		}
 	case TTEXT_MAIN_MENU_COMMAND:
 		fmt.Printf("User %v selected main menu\n", Update.GetChatId())
@@ -224,12 +224,14 @@ func (env *environment) rootHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	user, ok := env.users.data[Update.GetChatId()]
-	if !ok {
-		log.Printf("user with chat id - [%v] is not found", Update.GetChatId())
-	} else {
-		env.users.saveLastUserAction(Update.GetChatId(), processedResult.userAction)
-		env.db.saveUserData(Update.GetChatId(), user)
+	if processedResult.responseType != RESPONSE_TYPE_NONE {
+		user, ok := env.users.data[Update.GetChatId()]
+		if !ok {
+			log.Printf("user with chat id - [%v] is not found", Update.GetChatId())
+		} else {
+			env.users.saveLastUserAction(Update.GetChatId(), processedResult.userAction)
+			env.db.saveUserData(Update.GetChatId(), user)
+		}
 	}
 
 	fmt.Printf("Processed result - [%v]", processedResult)

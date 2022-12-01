@@ -98,6 +98,8 @@ func (u *Users) saveLastUserAction(chatId ChatId, action UserAction) {
 	if user, ok := u.data[chatId]; ok {
 		user.LastAction = action
 		u.data[chatId] = user
+
+		log.Printf("user with chat id [%v] updated with last action [%v]", chatId, action)
 	} else {
 		log.Printf("user with chat id [%v] not found", chatId)
 	}
