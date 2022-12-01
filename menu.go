@@ -33,10 +33,9 @@ func processMainMenu(messageText string, user User, chatId ChatId, env *environm
 	case TTEXT_START_FOCUS:
 		_, ok := env.timeKeepers[chatId]
 		if ok {
-			//return true, fmt.Sprintf("user with chat id - [%v] already has a time keeper", chatId)
 			return MenuProcessorResult{
 				responseType:  RESPONSE_TYPE_KEYBOARD,
-				replyKeyboard: GenerateCustomKeyboard(TTEXT_STOP_FOCUS),
+				replyKeyboard: GenerateCustomKeyboard(TTEXT_TIME_LEFT, TTEXT_STOP_FOCUS),
 				replyText:     "Oops, looks like you already have an active time guard!",
 				userAction:    UserAction{CurrentMenu: MENU_INFOCUS},
 			}, nil
@@ -45,14 +44,13 @@ func processMainMenu(messageText string, user User, chatId ChatId, env *environm
 		env.timeKeepers[chatId] = startTimeKeeper(chatId, user.FocusDurationMins, "The focus session ended, you can rest now!", env.onTimekeepStopped)
 		result = MenuProcessorResult{
 			responseType:  RESPONSE_TYPE_KEYBOARD,
-			replyKeyboard: GenerateCustomKeyboard(TTEXT_STOP_FOCUS),
-			replyText:     fmt.Sprintf("Focus started! I will keep your time guard for %v minutes", user.FocusDurationMins),
+			replyKeyboard: GenerateCustomKeyboard(TTEXT_TIME_LEFT, TTEXT_STOP_FOCUS),
+			replyText:     fmt.Sprintf("Focus started! I will keep you focused for %v minutes", user.FocusDurationMins),
 			userAction:    UserAction{CurrentMenu: MENU_INFOCUS},
 		}
 	case TTEXT_START_BREAK:
 		_, ok := env.timeKeepers[chatId]
 		if ok {
-			//return true, fmt.Sprintf("user with chat id - [%v] already has a time keeper", chatId)
 			return MenuProcessorResult{
 				responseType:  RESPONSE_TYPE_KEYBOARD,
 				replyKeyboard: GenerateMainKeyboard(),
@@ -64,14 +62,14 @@ func processMainMenu(messageText string, user User, chatId ChatId, env *environm
 		env.timeKeepers[chatId] = startTimeKeeper(chatId, user.BreakDurationMins, "Break is over. Let's get back to work!", env.onTimekeepStopped)
 		result = MenuProcessorResult{
 			responseType:  RESPONSE_TYPE_KEYBOARD,
-			replyKeyboard: GenerateCustomKeyboard(TTEXT_STOP_BREAK),
-			replyText:     fmt.Sprintf("Focus started! I will keep your time guard for %v minutes", user.BreakDurationMins),
+			replyKeyboard: GenerateCustomKeyboard(TTEXT_TIME_LEFT, TTEXT_STOP_BREAK),
+			replyText:     fmt.Sprintf("Break started! You can rest for %v minutes", user.BreakDurationMins),
 			userAction:    UserAction{CurrentMenu: MENU_INBREAK},
 		}
 	case TTEXT_SETTINGS:
 		result = MenuProcessorResult{
 			responseType:  RESPONSE_TYPE_KEYBOARD,
-			replyKeyboard: GenerateCustomKeyboard(TTEXT_FOCUS_DURATION, TTEXT_BREAK_DURATION),
+			replyKeyboard: GenerateCustomKeyboard(TTEXT_FOCUS_DURATION, TTEXT_BREAK_DURATION, TTEXT_MAIN_MENU),
 			replyText:     "Settings",
 			userAction:    UserAction{CurrentMenu: MENU_SETTINGS},
 		}
@@ -86,8 +84,8 @@ func processInFocusMenu(messageText string, chatId ChatId, timeKeepers *map[Chat
 		if !ok {
 			return MenuProcessorResult{
 				responseType:  RESPONSE_TYPE_KEYBOARD,
-				replyKeyboard: GenerateCustomKeyboard(TTEXT_STOP_FOCUS),
-				replyText:     "Oops, looks like you don't have an active time guard!",
+				replyKeyboard: GenerateCustomKeyboard(TTEXT_TIME_LEFT, TTEXT_STOP_FOCUS),
+				replyText:     "Oops, looks like you don't have an active focus!",
 				userAction:    UserAction{CurrentMenu: MENU_INFOCUS},
 			}, nil
 		} else {
@@ -106,7 +104,23 @@ func processInFocusMenu(messageText string, chatId ChatId, timeKeepers *map[Chat
 				}
 			}
 		}
-
+	case TTEXT_TIME_LEFT:
+		tk, ok := (*timeKeepers)[chatId]
+		if !ok {
+			return MenuProcessorResult{
+				responseType:  RESPONSE_TYPE_KEYBOARD,
+				replyKeyboard: GenerateCustomKeyboard(TTEXT_TIME_LEFT, TTEXT_STOP_FOCUS),
+				replyText:     "Oops, looks like you don't have an active focus!",
+				userAction:    UserAction{CurrentMenu: MENU_INFOCUS},
+			}, nil
+		} else {
+			result = MenuProcessorResult{
+				responseType:  RESPONSE_TYPE_KEYBOARD,
+				replyKeyboard: GenerateCustomKeyboard(TTEXT_TIME_LEFT, TTEXT_STOP_FOCUS),
+				replyText:     fmt.Sprintf("You have %v to go", generateTimeLeftString(tk)),
+				userAction:    UserAction{CurrentMenu: MENU_INFOCUS},
+			}
+		}
 	}
 	return
 }
@@ -118,8 +132,8 @@ func processInBreakMenu(messageText string, chatId ChatId, timeKeepers *map[Chat
 		if !ok {
 			return MenuProcessorResult{
 				responseType:  RESPONSE_TYPE_KEYBOARD,
-				replyKeyboard: GenerateCustomKeyboard(TTEXT_STOP_BREAK),
-				replyText:     "Oops, looks like you don't have an active time guard!",
+				replyKeyboard: GenerateCustomKeyboard(TTEXT_TIME_LEFT, TTEXT_STOP_BREAK),
+				replyText:     "Oops, looks like you don't have an active break!",
 				userAction:    UserAction{CurrentMenu: MENU_INBREAK},
 			}, nil
 		} else {
@@ -138,9 +152,35 @@ func processInBreakMenu(messageText string, chatId ChatId, timeKeepers *map[Chat
 				}
 			}
 		}
-
+	case TTEXT_TIME_LEFT:
+		tk, ok := (*timeKeepers)[chatId]
+		if !ok {
+			return MenuProcessorResult{
+				responseType:  RESPONSE_TYPE_KEYBOARD,
+				replyKeyboard: GenerateCustomKeyboard(TTEXT_TIME_LEFT, TTEXT_STOP_BREAK),
+				replyText:     "Oops, looks like you don't have an active break!",
+				userAction:    UserAction{CurrentMenu: MENU_INBREAK},
+			}, nil
+		} else {
+			result = MenuProcessorResult{
+				responseType:  RESPONSE_TYPE_KEYBOARD,
+				replyKeyboard: GenerateCustomKeyboard(TTEXT_TIME_LEFT, TTEXT_STOP_BREAK),
+				replyText:     fmt.Sprintf("You can still relax for %v", generateTimeLeftString(tk)),
+				userAction:    UserAction{CurrentMenu: MENU_INBREAK},
+			}
+		}
 	}
 	return
+}
+
+func generateTimeLeftString(tk *TimeKeeper) string {
+	if tk.secondsLeft > 0 && tk.secondsLeft%60 == 0 {
+		return fmt.Sprintf("<b>%v minutes</b>", tk.secondsLeft/60)
+	} else if tk.secondsLeft/60 == 0 {
+		return fmt.Sprintf("<b>%v seconds</b>", tk.secondsLeft)
+	} else {
+		return fmt.Sprintf("<b>%v minutes and %v seconds</b>", tk.secondsLeft/60, tk.secondsLeft%60)
+	}
 }
 
 func processSettingsMenu(messageText string, user User) (result MenuProcessorResult, err error) {
@@ -158,6 +198,13 @@ func processSettingsMenu(messageText string, user User) (result MenuProcessorRes
 			replyKeyboard: GenerateCustomKeyboard(TTEXT_CHANGE_BREAK_DURATION, TTEXT_BACK),
 			replyText:     fmt.Sprintf("Your current break duration is %v minutes. Do you want to change it?", user.BreakDurationMins),
 			userAction:    UserAction{CurrentMenu: MENU_SETTINGS_BREAK_DURATION},
+		}
+	case TTEXT_MAIN_MENU:
+		result = MenuProcessorResult{
+			responseType:  RESPONSE_TYPE_KEYBOARD,
+			replyKeyboard: GenerateMainKeyboard(),
+			replyText:     "Back to main menu",
+			userAction:    UserAction{CurrentMenu: MENU_MAIN_MENU},
 		}
 	}
 	return
@@ -201,7 +248,7 @@ func processSettingsFocusDurationMenu(messageText string, chatId ChatId, user Us
 	case TTEXT_BACK:
 		result = MenuProcessorResult{
 			responseType:  RESPONSE_TYPE_KEYBOARD,
-			replyKeyboard: GenerateCustomKeyboard(TTEXT_FOCUS_DURATION, TTEXT_BREAK_DURATION),
+			replyKeyboard: GenerateCustomKeyboard(TTEXT_FOCUS_DURATION, TTEXT_BREAK_DURATION, TTEXT_MAIN_MENU),
 			replyText:     "Going back to the settings menu",
 			userAction:    UserAction{CurrentMenu: MENU_SETTINGS},
 		}
@@ -243,7 +290,7 @@ func processSettingsBreakDurationMenu(messageText string, chatId ChatId, user Us
 	case TTEXT_BACK:
 		result = MenuProcessorResult{
 			responseType:  RESPONSE_TYPE_KEYBOARD,
-			replyKeyboard: GenerateCustomKeyboard(TTEXT_FOCUS_DURATION, TTEXT_BREAK_DURATION),
+			replyKeyboard: GenerateCustomKeyboard(TTEXT_FOCUS_DURATION, TTEXT_BREAK_DURATION, TTEXT_SETTINGS),
 			replyText:     "Going back to the settings menu",
 			userAction:    UserAction{CurrentMenu: MENU_SETTINGS},
 		}
