@@ -77,32 +77,9 @@ func (u *TUpdate) GetChatId() ChatId {
 }
 
 const (
-	TTEXT_START_COMMAND     = "/start"
-	TTEXT_DURATIONS_COMMAND = "/durations"
-	TTEXT_MAIN_MENU_COMMAND = "/main"
-
-	TTEXT_MAIN_MENU             = "Main menu"
-	TTEXT_START_FOCUS           = "Let's focus"
-	TTEXT_SETTINGS              = "Settings"
-	TTEXT_STOP_FOCUS            = "Stop focus"
-	TTEXT_TIME_LEFT             = "Time left"
-	TTEXT_START_BREAK           = "Let's take a break"
-	TTEXT_STOP_BREAK            = "Stop break"
-	TTEXT_FOCUS_DURATION        = "Focus duration"
-	TTEXT_BREAK_DURATION        = "Break duration"
-	TTEXT_CHANGE_FOCUS_DURATION = "Change focus duration"
-	TTEXT_CHANGE_BREAK_DURATION = "Change break duration"
-	TTEXT_BACK                  = "Back"
-)
-
-const (
 	INVALID_ACTION = iota
-	START_ACTION
 	CHANGE_FOCUS_DURATION_ACTION
 	CHANGE_BREAK_DURATION_ACTION
-	SELECT_TASK_NAME_ACTION
-	SELECT_TASK_PERIODS_ACTION
-	SELECT_TASK_ORDER_ACTION
 )
 
 func getPathValue(r *http.Request, pathCheck *regexp.Regexp) (string, error) {

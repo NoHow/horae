@@ -2,6 +2,39 @@ package main
 
 import (
 	"fmt"
+	"log"
+)
+
+const (
+	TTEXT_START_COMMAND     = "/start"
+	TTEXT_DURATIONS_COMMAND = "/durations"
+	TTEXT_MAIN_MENU_COMMAND = "/main"
+
+	TTEXT_MAIN_MENU             = "Main menu"
+	TTEXT_START_FOCUS           = "Let's focus " + EMOJI_SEEDLING
+	TTEXT_SETTINGS              = "Settings " + EMOJI_WRENCH
+	TTEXT_STOP_FOCUS            = "Stop focus " + EMOJI_FALLEN_LEAF
+	TTEXT_TIME_LEFT_FOCUS       = "Time left " + EMOJI_HERB
+	TTEXT_TIME_LEFT_BREAK       = "Time left " + EMOJI_PERSON_IN_LOTUS_POSITION
+	TTEXT_START_BREAK           = "Let's take a break " + EMOJI_PERSON_HOT_BEVERAGE
+	TTEXT_STOP_BREAK            = "Stop break " + EMOJI_PERSON_RUNNING
+	TTEXT_FOCUS_DURATION        = "Focus duration"
+	TTEXT_BREAK_DURATION        = "Break duration"
+	TTEXT_CHANGE_FOCUS_DURATION = "Change focus duration"
+	TTEXT_CHANGE_BREAK_DURATION = "Change break duration"
+	TTEXT_BACK                  = EMOJI_BACK
+
+	EMOJI_SEEDLING                  = "\U0001F331"
+	EMOJI_HERB                      = "\U0001F33F"
+	EMOJI_FALLEN_LEAF               = "\U0001F342"
+	EMOJI_PERSON_HOT_BEVERAGE       = "\u2615"
+	EMOJI_WRENCH                    = "\U0001F527"
+	EMOJI_STOPWATCH                 = "\u23F1"
+	EMOJI_CROSS_MARK                = "\u274C"
+	EMOJI_BACK                      = "\U0001F519"
+	EMOJI_WHITE_MEDIUM_SMALL_SQUARE = "\u25FD"
+	EMOJI_PERSON_IN_LOTUS_POSITION  = "\U0001F9D8"
+	EMOJI_PERSON_RUNNING            = "\U0001F3C3"
 )
 
 const (
@@ -35,7 +68,7 @@ func processMainMenu(messageText string, user User, chatId ChatId, env *environm
 		if ok {
 			return MenuProcessorResult{
 				responseType:  RESPONSE_TYPE_KEYBOARD,
-				replyKeyboard: GenerateCustomKeyboard(TTEXT_TIME_LEFT, TTEXT_STOP_FOCUS),
+				replyKeyboard: GenerateCustomKeyboard(TTEXT_TIME_LEFT_FOCUS, TTEXT_STOP_FOCUS),
 				replyText:     "Oops, looks like you already have an active time guard!",
 				userAction:    UserAction{CurrentMenu: MENU_INFOCUS},
 			}, nil
@@ -44,7 +77,7 @@ func processMainMenu(messageText string, user User, chatId ChatId, env *environm
 		env.timeKeepers[chatId] = startTimeKeeper(chatId, user.FocusDurationMins, "The focus session ended, you can rest now!", env.onTimekeepStopped)
 		result = MenuProcessorResult{
 			responseType:  RESPONSE_TYPE_KEYBOARD,
-			replyKeyboard: GenerateCustomKeyboard(TTEXT_TIME_LEFT, TTEXT_STOP_FOCUS),
+			replyKeyboard: GenerateCustomKeyboard(TTEXT_TIME_LEFT_FOCUS, TTEXT_STOP_FOCUS),
 			replyText:     fmt.Sprintf("Focus started! I will keep you focused for %v minutes", user.FocusDurationMins),
 			userAction:    UserAction{CurrentMenu: MENU_INFOCUS},
 		}
@@ -53,16 +86,16 @@ func processMainMenu(messageText string, user User, chatId ChatId, env *environm
 		if ok {
 			return MenuProcessorResult{
 				responseType:  RESPONSE_TYPE_KEYBOARD,
-				replyKeyboard: GenerateMainKeyboard(),
+				replyKeyboard: GenerateCustomKeyboard(TTEXT_TIME_LEFT_BREAK, TTEXT_STOP_BREAK),
 				replyText:     "Oops, looks like you already have an active time guard!",
-				userAction:    UserAction{CurrentMenu: MENU_MAIN_MENU},
+				userAction:    UserAction{CurrentMenu: MENU_INBREAK},
 			}, fmt.Errorf("user with chat id - [%v] already has a time keeper", chatId)
 		}
 
 		env.timeKeepers[chatId] = startTimeKeeper(chatId, user.BreakDurationMins, "Break is over. Let's get back to work!", env.onTimekeepStopped)
 		result = MenuProcessorResult{
 			responseType:  RESPONSE_TYPE_KEYBOARD,
-			replyKeyboard: GenerateCustomKeyboard(TTEXT_TIME_LEFT, TTEXT_STOP_BREAK),
+			replyKeyboard: GenerateCustomKeyboard(TTEXT_TIME_LEFT_BREAK, TTEXT_STOP_BREAK),
 			replyText:     fmt.Sprintf("Break started! You can rest for %v minutes", user.BreakDurationMins),
 			userAction:    UserAction{CurrentMenu: MENU_INBREAK},
 		}
@@ -84,13 +117,14 @@ func processInFocusMenu(messageText string, chatId ChatId, timeKeepers *map[Chat
 		if !ok {
 			return MenuProcessorResult{
 				responseType:  RESPONSE_TYPE_KEYBOARD,
-				replyKeyboard: GenerateCustomKeyboard(TTEXT_TIME_LEFT, TTEXT_STOP_FOCUS),
+				replyKeyboard: GenerateCustomKeyboard(TTEXT_TIME_LEFT_FOCUS, TTEXT_STOP_FOCUS),
 				replyText:     "Oops, looks like you don't have an active focus!",
 				userAction:    UserAction{CurrentMenu: MENU_INFOCUS},
 			}, nil
 		} else {
 			ok = tk.stopTimeKeep()
 			if !ok {
+				log.Printf("Failed to stop timekeeper for chat id - [%v]", chatId)
 				return MenuProcessorResult{
 					responseType: RESPONSE_TYPE_NONE,
 				}, nil
@@ -104,19 +138,19 @@ func processInFocusMenu(messageText string, chatId ChatId, timeKeepers *map[Chat
 				}
 			}
 		}
-	case TTEXT_TIME_LEFT:
+	case TTEXT_TIME_LEFT_FOCUS:
 		tk, ok := (*timeKeepers)[chatId]
 		if !ok {
 			return MenuProcessorResult{
 				responseType:  RESPONSE_TYPE_KEYBOARD,
-				replyKeyboard: GenerateCustomKeyboard(TTEXT_TIME_LEFT, TTEXT_STOP_FOCUS),
+				replyKeyboard: GenerateCustomKeyboard(TTEXT_TIME_LEFT_FOCUS, TTEXT_STOP_FOCUS),
 				replyText:     "Oops, looks like you don't have an active focus!",
 				userAction:    UserAction{CurrentMenu: MENU_INFOCUS},
 			}, nil
 		} else {
 			result = MenuProcessorResult{
 				responseType:  RESPONSE_TYPE_KEYBOARD,
-				replyKeyboard: GenerateCustomKeyboard(TTEXT_TIME_LEFT, TTEXT_STOP_FOCUS),
+				replyKeyboard: GenerateCustomKeyboard(TTEXT_TIME_LEFT_FOCUS, TTEXT_STOP_FOCUS),
 				replyText:     fmt.Sprintf("You have %v to go", generateTimeLeftString(tk)),
 				userAction:    UserAction{CurrentMenu: MENU_INFOCUS},
 			}
@@ -132,13 +166,14 @@ func processInBreakMenu(messageText string, chatId ChatId, timeKeepers *map[Chat
 		if !ok {
 			return MenuProcessorResult{
 				responseType:  RESPONSE_TYPE_KEYBOARD,
-				replyKeyboard: GenerateCustomKeyboard(TTEXT_TIME_LEFT, TTEXT_STOP_BREAK),
+				replyKeyboard: GenerateCustomKeyboard(TTEXT_TIME_LEFT_BREAK, TTEXT_STOP_BREAK),
 				replyText:     "Oops, looks like you don't have an active break!",
 				userAction:    UserAction{CurrentMenu: MENU_INBREAK},
 			}, nil
 		} else {
 			ok = tk.stopTimeKeep()
 			if !ok {
+				log.Printf("Failed to stop timekeeper for chat id - [%v]", chatId)
 				return MenuProcessorResult{
 					responseType: RESPONSE_TYPE_NONE,
 				}, nil
@@ -152,19 +187,19 @@ func processInBreakMenu(messageText string, chatId ChatId, timeKeepers *map[Chat
 				}
 			}
 		}
-	case TTEXT_TIME_LEFT:
+	case TTEXT_TIME_LEFT_BREAK:
 		tk, ok := (*timeKeepers)[chatId]
 		if !ok {
 			return MenuProcessorResult{
 				responseType:  RESPONSE_TYPE_KEYBOARD,
-				replyKeyboard: GenerateCustomKeyboard(TTEXT_TIME_LEFT, TTEXT_STOP_BREAK),
+				replyKeyboard: GenerateCustomKeyboard(TTEXT_TIME_LEFT_BREAK, TTEXT_STOP_BREAK),
 				replyText:     "Oops, looks like you don't have an active break!",
 				userAction:    UserAction{CurrentMenu: MENU_INBREAK},
 			}, nil
 		} else {
 			result = MenuProcessorResult{
 				responseType:  RESPONSE_TYPE_KEYBOARD,
-				replyKeyboard: GenerateCustomKeyboard(TTEXT_TIME_LEFT, TTEXT_STOP_BREAK),
+				replyKeyboard: GenerateCustomKeyboard(TTEXT_TIME_LEFT_BREAK, TTEXT_STOP_BREAK),
 				replyText:     fmt.Sprintf("You can still relax for %v", generateTimeLeftString(tk)),
 				userAction:    UserAction{CurrentMenu: MENU_INBREAK},
 			}
@@ -290,7 +325,7 @@ func processSettingsBreakDurationMenu(messageText string, chatId ChatId, user Us
 	case TTEXT_BACK:
 		result = MenuProcessorResult{
 			responseType:  RESPONSE_TYPE_KEYBOARD,
-			replyKeyboard: GenerateCustomKeyboard(TTEXT_FOCUS_DURATION, TTEXT_BREAK_DURATION, TTEXT_SETTINGS),
+			replyKeyboard: GenerateCustomKeyboard(TTEXT_FOCUS_DURATION, TTEXT_BREAK_DURATION, TTEXT_MAIN_MENU),
 			replyText:     "Going back to the settings menu",
 			userAction:    UserAction{CurrentMenu: MENU_SETTINGS},
 		}
