@@ -41,8 +41,7 @@ func (tk *TimeKeeper) watchTime(chatId ChatId, focusDuration int, finishMessage 
 			return
 		}
 
-		t := <-ticker.C
-		fmt.Printf("Tick at %v for user [%v]\n", t, chatId)
+		_ = <-ticker.C
 		tk.secondsLeft = tk.secondsLeft - 1
 		if tk.secondsLeft == 0 {
 			ok := tk.stopTimeKeep()
