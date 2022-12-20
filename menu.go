@@ -14,6 +14,7 @@ const (
 	TTEXT_START_FOCUS           = "Let's focus " + EMOJI_SEEDLING
 	TTEXT_SETTINGS              = "Settings " + EMOJI_WRENCH
 	TTEXT_STOP_FOCUS            = "Stop focus " + EMOJI_FALLEN_LEAF
+	TTEXT_CLOCK                 = "Clock test"
 	TTEXT_TIME_LEFT_FOCUS       = "Time left " + EMOJI_HERB
 	TTEXT_TIME_LEFT_BREAK       = "Time left " + EMOJI_PERSON_IN_LOTUS_POSITION
 	TTEXT_START_BREAK           = "Let's take a break " + EMOJI_PERSON_HOT_BEVERAGE

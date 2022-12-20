@@ -4,10 +4,13 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 	"os"
 )
+
+var templates *template.Template
 
 type Config struct {
 	TelegramBotToken string `json:"telegram-bot-token"`
@@ -32,6 +35,8 @@ func loadConfig() Config {
 }
 
 func main() {
+	templates = template.Must(template.ParseFiles("frontend/clock.html"))
+
 	tlsCert := os.Getenv("tls-certificate")
 	fmt.Println(tlsCert)
 
@@ -45,7 +50,12 @@ func main() {
 		log.Fatal("error: failed to create environment")
 	}
 	http.HandleFunc("/update/", env.updateHandler)
+	http.HandleFunc("/clock/", env.clockHandler)
+	http.HandleFunc("/css/", cssHandler)
 	http.HandleFunc("/", env.rootHandler)
 
+	go func() {
+		http.ListenAndServe(":80", nil)
+	}()
 	log.Fatal(http.ListenAndServeTLS(":443", cfg.CertificateFile, cfg.KeyFile, nil))
 }

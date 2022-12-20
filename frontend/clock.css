@@ -1,0 +1,87 @@
+:root {
+    --active-color: #879fb7;
+    --background-color: #000;
+}
+*,
+*::after,
+*::before {
+    padding: 0;
+    margin: 0;
+    box-sizing: border-box;
+}
+html {
+    font-size: 0.8vw;
+}
+body {
+    background-color: var(--background-color);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+.clock {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    width: 90rem;
+}
+.digit {
+    width: 12rem;
+    position: relative;
+    height: 24rem;
+}
+.hours,
+.minutes,
+.seconds {
+    position: relative;
+    display: flex;
+}
+.segment {
+    width: 8rem;
+    height: 2rem;
+    background-color: var(--active-color);
+    opacity: 0.08;
+    position: absolute;
+
+    border-radius: 10rem;
+    transition: opacity 400ms;
+}
+.colons {
+    display: flex;
+    justify-content: space-around;
+    height: 12rem;
+    flex-direction: column;
+    transform: translateX(-2rem);
+}
+.colon {
+    width: 3rem;
+    height: 3rem;
+    background-color: var(--active-color);
+    border-radius: 50%;
+}
+.segment-2 {
+    transform-origin: top left;
+    transform: rotate(90deg) translate(1.5rem, -0.05rem);
+}
+.segment-3 {
+    transform-origin: top right;
+    transform: rotate(-90deg) translate(-1.5rem, -0.5rem);
+}
+.segment-4 {
+    transform: translateY(9rem);
+}
+.segment-5 {
+    transform-origin: top left;
+    transform: rotate(90deg) translate(10.5rem, -0.5rem);
+}
+.segment-6 {
+    transform-origin: top right;
+    transform: rotate(-90deg) translate(-10.5rem, -0.5rem);
+}
+.segment-7 {
+    transform: translateY(18rem);
+}
+.active {
+    opacity: 1;
+}

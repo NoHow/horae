@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-var validPath = regexp.MustCompile("^/(update)/+")
+var validPath = regexp.MustCompile("^/(update|clock)/+")
 var reIpAddress = regexp.MustCompile(`^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.?\b){4}$`)
 
 type environment struct {
@@ -31,14 +31,35 @@ type TChat struct {
 	Type string `json:"type"`
 }
 
+type TButtonInterface interface {
+	GetText() string
+}
+
 type TKeyBoardButton struct {
 	Text string `json:"text"`
 }
 
+func (b *TKeyBoardButton) GetText() string {
+	return b.Text
+}
+
+type TWebKeyboardButton struct {
+	Text   string      `json:"text"`
+	WebApp TWebAppInfo `json:"web_app"`
+}
+
+func (b *TWebKeyboardButton) GetText() string {
+	return b.Text
+}
+
+type TWebAppInfo struct {
+	Url string `json:"url"`
+}
+
 type TReplyKeyboard struct {
-	Keyboard        [][]TKeyBoardButton `json:"keyboard"`
-	ResizeKeyboard  bool                `json:"resize_keyboard"`
-	OneTimeKeyboard bool                `json:"one_time_keyboard"`
+	Keyboard        [][]TButtonInterface `json:"keyboard"`
+	ResizeKeyboard  bool                 `json:"resize_keyboard"`
+	OneTimeKeyboard bool                 `json:"one_time_keyboard"`
 }
 
 type TMessage struct {
@@ -74,6 +95,11 @@ type TUpdate struct {
 
 func (u *TUpdate) GetChatId() ChatId {
 	return ChatId(u.Message.Chat.Id)
+}
+
+type Page struct {
+	Title string
+	Body  []byte
 }
 
 const (
@@ -227,8 +253,33 @@ func (env *environment) rootHandler(w http.ResponseWriter, r *http.Request) {
 			Text:   processedResult.replyText,
 		}
 		env.marshalAndSendMessage(Msg)
+	case RESPONSE_TYPE_NONE:
+		Msg = TMessageSend{
+			ChatId: Update.GetChatId(),
+			Text:   "Sorry, I don't understand you",
+		}
 	}
 	log.Printf("Successfully processed message from user - [%v]", Update.Message.From.FirstName)
+}
+
+func (env *environment) clockHandler(w http.ResponseWriter, r *http.Request) {
+	_, err := getPathValue(r, validPath)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	renderTemplate(w, "clock", &Page{
+		Title: "Clock!",
+		Body:  nil,
+	})
+}
+
+func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
+	err := templates.ExecuteTemplate(w, tmpl+".html", p)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 type timeekeepStoppedCallback func(chatId ChatId, finishMessage string)
@@ -276,7 +327,7 @@ func (env *environment) setupWebhook(certificateFilePath string, url string) err
 	err = writer.WriteField("ip_address", env.ipAddress)
 	writer.Close()
 
-	request, err := http.NewRequest("POST", "https://api.telegram.org/bot"+env.botKey+"/setWebhook", body)
+	request, err := http.NewRequest("POST", "https://api.telegram.org/bot"+env.botKey+"/test/setWebhook", body)
 	if err != nil {
 		return err
 	}
@@ -295,7 +346,7 @@ func (env *environment) setupWebhook(certificateFilePath string, url string) err
 }
 
 func (env *environment) deleteWebhook() error {
-	resp, err := http.Get("https://api.telegram.org/bot" + env.botKey + "/deleteWebhook?url=https://" + env.ipAddress + "/")
+	resp, err := http.Get("https://api.telegram.org/bot" + env.botKey + "/test/deleteWebhook?url=https://" + env.ipAddress + "/")
 	if err != nil {
 		return err
 	}
@@ -309,7 +360,7 @@ func (env *environment) deleteWebhook() error {
 }
 
 func (env *environment) getWebhookInfo() error {
-	resp, err := http.Get("https://api.telegram.org/bot" + env.botKey + "/getWebhookInfo?url=https://" + env.ipAddress + "/update")
+	resp, err := http.Get("https://api.telegram.org/bot" + env.botKey + "/test/getWebhookInfo?url=https://" + env.ipAddress + "/update")
 	if err != nil {
 		return err
 	}
@@ -347,6 +398,13 @@ func (env *environment) sendHttpMessage(buf []byte) error {
 	}
 
 	return nil
+}
+
+func cssHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("css handler", r.URL.Path[5:])
+	w.Header().Add("Content-Type", "text/css")
+	http.ServeFile(w, r, "./frontend/"+r.URL.Path[5:])
+	fmt.Println("css handler done", "./frontend/"+r.URL.Path[5:])
 }
 
 func createEnvironment(webhookAction string, botKey string, ipAddress string, certificateFilePath string, url string) *environment {
@@ -404,7 +462,7 @@ func createEnvironment(webhookAction string, botKey string, ipAddress string, ce
 }
 
 func GenerateMainKeyboard() TReplyKeyboard {
-	keyboard := make([][]TKeyBoardButton, 3)
+	keyboard := make([][]TButtonInterface, 3)
 	keyboard[0] = GenerateKeyboardRow(TTEXT_START_FOCUS)
 	keyboard[1] = GenerateKeyboardRow(TTEXT_START_BREAK)
 	keyboard[2] = GenerateKeyboardRow(TTEXT_SETTINGS)
@@ -416,7 +474,7 @@ func GenerateMainKeyboard() TReplyKeyboard {
 }
 
 func GenerateCustomKeyboard(menuOptions ...string) TReplyKeyboard {
-	keyboard := make([][]TKeyBoardButton, len(menuOptions))
+	keyboard := make([][]TButtonInterface, len(menuOptions))
 	for i, option := range menuOptions {
 		keyboard[i] = GenerateKeyboardRow(option)
 	}
@@ -428,14 +486,25 @@ func GenerateCustomKeyboard(menuOptions ...string) TReplyKeyboard {
 	}
 }
 
-func GenerateKeyboardRow(btnText string) []TKeyBoardButton {
-	keyboard := make([]TKeyBoardButton, 1)
-	keyboard[0] = TKeyBoardButton{
+func GenerateKeyboardRow(btnText string) []TButtonInterface {
+	keyboard := make([]TButtonInterface, 1)
+	keyboard[0] = &TKeyBoardButton{
 		Text: btnText,
 	}
 	return keyboard
 }
 
+func GenerateKeyboardRowWeb(btnText string, url string) []TButtonInterface {
+	keyboard := make([]TButtonInterface, 1)
+	keyboard[0] = &TWebKeyboardButton{
+		Text: btnText,
+		WebApp: TWebAppInfo{
+			Url: url,
+		},
+	}
+	return keyboard
+}
+
 func (env *environment) generateTelegramUrl(action string) string {
-	return "https://api.telegram.org/bot" + env.botKey + "/" + action
+	return "https://api.telegram.org/bot" + env.botKey + "/test/" + action
 }
