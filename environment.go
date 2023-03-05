@@ -234,6 +234,14 @@ func (env *environment) rootHandler(w http.ResponseWriter, r *http.Request) {
 type timeekeepStoppedCallback func(chatId ChatId, finishMessage string)
 
 func (env *environment) onTimekeepStopped(chatId ChatId, finishMessage string) {
+	user, ok := env.users.data[chatId]
+	if !ok {
+		log.Printf("user with chat id - [%v] is not found", chatId)
+	} else {
+		env.users.saveLastUserAction(chatId, UserAction{CurrentMenu: MENU_MAIN_MENU})
+		env.db.saveUserData(chatId, user)
+	}
+
 	delete(env.timeKeepers, chatId)
 	msg := TKeyboardMessageSend{
 		ChatId:         chatId,
